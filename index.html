@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Smart Navi Pro+</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+body { margin:0; font-family:sans-serif; }
+#map { height:100vh; display:none; }
+
+/* ログイン画面 */
+#loginScreen {
+  position:fixed;
+  top:0; left:0;
+  width:100%;
+  height:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  z-index:2000;
+}
+
+.login-box {
+  background:white;
+  padding:20px;
+  border-radius:12px;
+  text-align:center;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+}
+
+.login-box input, .login-box button {
+  width:200px;
+  margin-top:10px;
+  padding:8px;
+}
+
+/* コントロールパネル */
+.panel {
+  position:absolute;
+  top:15px;
+  left:15px;
+  z-index:1000;
+  background:rgba(255,255,255,0.9);
+  padding:12px;
+  border-radius:12px;
+  width:240px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  display:none;
+}
+
+input, button {
+  width:100%;
+  margin-top:6px;
+  padding:8px;
+  border-radius:8px;
+  border:none;
+}
+
+button {
+  background:#2563eb;
+  color:white;
+  font-weight:bold;
+}
+
+#opacitySlider {
+  width:100%;
+  margin-top:10px;
+}
+
+.leaflet-top.leaflet-left {
+  top:auto;
+  bottom:100px;
+  left:10px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ログイン画面 -->
+<div id="loginScreen">
+  <div class="login-box">
+    <h3>🔐 ログイン</h3>
+    <input type="password" id="pw" placeholder="パスワード">
+    <button onclick="login()">ログイン</button>
+    <div id="msg" style="color:red;"></div>
+  </div>
+</div>
+
+<!-- ナビUI -->
+<div class="panel">
+  <input id="dest" placeholder="目的地">
+  <button onclick="startNavi()">ナビ開始</button>
+  <button onclick="logout()">ログアウト</button>
+
+  <label>地図の透過度</label>
+  <input type="range" id="opacitySlider" min="0" max="1" step="0.05" value="0.7">
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+// ===============================
+// 🔐 ログイン処理
+// ===============================
+const PASSWORD_HASH = btoa("7028"); // "1234"
+
+function login(){
+  const input = document.getElementById("pw").value;
+  if(btoa(input) === PASSWORD_HASH){
+    localStorage.setItem("auth","ok");
+    startApp();
+  }else{
+    document.getElementById("msg").innerText="パスワードが違います";
+  }
+}
+
+function logout(){
+  localStorage.removeItem("auth");
+  location.reload();
+}
+
+// ===============================
+// アプリ起動
+// ===============================
+function startApp(){
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("map").style.display="block";
+  document.querySelector(".panel").style.display="block";
+
+  initMap();
+}
+
+// ===============================
+// ログイン状態チェック
+// ===============================
+if(localStorage.getItem("auth")==="ok"){
+  startApp();
+}
+
+// ===============================
+// 🗺️ 地図処理（元コード）
+// ===============================
+function initMap(){
+
+const map = L.map('map').setView([35.596,137.909],13);
+
+const osm = L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+);
+
+const esri = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+);
+
+const gsi = L.tileLayer(
+  'https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg'
+);
+
+osm.addTo(map);
+
+const bounds = [
+  [35.56067448087151,137.8541959968587],
+  [35.64990221454237,138.00811173499673]
+];
+
+const overlayMap = L.imageOverlay('map.png', bounds, {
+  opacity: 0.7
+}).addTo(map);
+
+L.control.layers({
+  "通常地図": osm,
+  "航空写真（Esri）": esri,
+  "航空写真（国土地理院）": gsi
+},{
+  "町道図": overlayMap
+}).addTo(map);
+
+document.getElementById("opacitySlider").addEventListener("input", e => {
+  overlayMap.setOpacity(e.target.value);
+});
+
+let userMarker;
+
+navigator.geolocation.watchPosition(pos => {
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
+
+  if (!userMarker) {
+    userMarker = L.marker([lat, lng]).addTo(map);
+  } else {
+    userMarker.setLatLng([lat, lng]);
+  }
+});
+
+let routeLine;
+
+window.startNavi = async function(){
+  const dest = document.getElementById("dest").value;
+  if (!dest) return alert("目的地を入力");
+
+  const geo = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${dest}`);
+  const d = await geo.json();
+
+  const start = userMarker.getLatLng();
+
+  const route = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${d[0].lon},${d[0].lat}?overview=full&geometries=geojson`
+  );
+
+  const json = await route.json();
+
+  const coords = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+  if (routeLine) map.removeLayer(routeLine);
+
+  routeLine = L.polyline(coords, { color: 'red' }).addTo(map);
+}
+
+}
+</script>
+
+</body>
+</html>
