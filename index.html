@@ -56,13 +56,23 @@ body {
   z-index: 2000; display: none; flex-direction: column; gap: 12px; flex-shrink: 0;
 }
 
-.search-group {
-  display: flex; flex-direction: column; gap: 6px;
+/* タブデザイン (3つに増えたため文字を少し調整) */
+.tabs {
+  display: flex; background: #f3f4f6; padding: 4px; border-radius: 10px;
 }
+.tab-btn {
+  flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: bold;
+  color: #6b7280; border: none; background: transparent; border-radius: 8px;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.tab-btn.active {
+  background: #ffffff; color: #2563eb; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.search-group { display: flex; flex-direction: column; gap: 6px; }
 .search-row { display: flex; gap: 8px; align-items: center; }
 .search-label {
-  font-size: 12px; font-weight: bold; color: #4b5563;
-  width: 36px; text-align: center;
+  font-size: 12px; font-weight: bold; color: #4b5563; width: 36px; text-align: center;
 }
 .search-row input {
   flex: 1; margin: 0; padding: 10px 12px; font-size: 14px;
@@ -70,13 +80,18 @@ body {
   background: #f9fafb; outline: none; transition: all 0.2s;
 }
 .search-row input:focus {
-  border-color: #3b82f6; background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6; background: #ffffff; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 .search-row .nav-btn {
   margin: 0; padding: 0 14px; height: 40px; border-radius: 8px;
   background: #2563eb; color: white; border: none; font-weight: bold; white-space: nowrap;
 }
+
+/* お気に入りエリア */
+#favoriteArea {
+  max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+#favoriteArea::-webkit-scrollbar { display: none; }
 
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: 15px;
@@ -136,10 +151,17 @@ body {
 </div>
 
 <header class="top-header">
-  <div class="search-group">
+  <!-- タブ切り替えボタン -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-map" onclick="switchTab('map')">🗺️ マップ</button>
+    <button class="tab-btn" id="tab-route" onclick="switchTab('route')">🚗 ルート検索</button>
+    <button class="tab-btn" id="tab-favorite" onclick="switchTab('favorite')">⭐ お気に入り</button>
+  </div>
+
+  <!-- ルート検索エリア (初期は非表示) -->
+  <div class="search-group" id="routeSearchArea" style="display: none;">
     <div class="search-row">
       <div class="search-label">出発</div>
-      <!-- プレースホルダーで長押し操作を案内 -->
       <input id="startDest" placeholder="現在地 (地図を長押しで変更可)">
     </div>
     <div class="search-row">
@@ -148,6 +170,13 @@ body {
       <button onclick="startNavi()" class="nav-btn" id="navBtn">検索</button>
     </div>
   </div>
+
+  <!-- お気に入りリストエリア (初期は非表示) -->
+  <div id="favoriteArea" style="display: none;">
+    <div id="favoriteList"></div>
+  </div>
+
+  <!-- 設定エリア (共通) -->
   <div class="settings-row">
     <div class="slider-box">
       <span>透過度</span>
@@ -195,15 +224,13 @@ function startApp(){
 if(localStorage.getItem("auth")==="ok") startApp();
 
 function initMap(){
+  window.currentMode = 'map';
+
   const map = L.map('map', {zoomControl: false}).setView([35.596,137.909],13);
   setTimeout(() => { map.invalidateSize(); }, 100);
   
-  // ズームボタンを下部に配置
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  // ===============================
-  // 🗺️ 航空写真レイヤーの復活
-  // ===============================
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
   const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg');
@@ -211,17 +238,96 @@ function initMap(){
   const bounds = [[35.56067448087151,137.8541959968587],[35.64990221454237,138.00811173499673]];
   const overlayMap = L.imageOverlay('map.png', bounds, { opacity: 0.7 }).addTo(map);
 
-  // 右上の重なった四角のアイコン（レイヤー切り替え）
   L.control.layers({
-    "通常地図": osm,
-    "航空写真（Esri）": esri,
-    "航空写真（国土地理院）": gsi
-  },{
-    "町道図": overlayMap
-  }).addTo(map);
+    "通常地図": osm, "航空写真（Esri）": esri, "航空写真（国土地理院）": gsi
+  },{"町道図": overlayMap}).addTo(map);
 
-  // 透過度スライダー
   document.getElementById("opacitySlider").addEventListener("input", e => overlayMap.setOpacity(e.target.value));
+
+  // ===============================
+  // お気に入り（LocalStorage）管理
+  // ===============================
+  window.addFavorite = function(lat, lng, defaultName) {
+    const name = prompt("お気に入りの名前を入力してください", defaultName);
+    if (!name) return; // キャンセル時
+    
+    let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+    favs.push({ name, lat, lng });
+    localStorage.setItem("favorites", JSON.stringify(favs));
+    
+    alert(`「${name}」をお気に入りに登録しました！`);
+    renderFavorites(); // もしタブを開いていれば即座に反映
+  };
+
+  window.removeFavorite = function(index) {
+    if (!confirm("このお気に入りを削除しますか？")) return;
+    let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+    favs.splice(index, 1);
+    localStorage.setItem("favorites", JSON.stringify(favs));
+    renderFavorites();
+  };
+
+  window.useFavoriteAsDest = function(index) {
+    let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+    let f = favs[index];
+    if (!f) return;
+    
+    // タブをルート検索に切り替え、目的地にセットして検索
+    switchTab('route');
+    document.getElementById("dest").value = f.name;
+    setDestMarker(L.latLng(f.lat, f.lng), f.name);
+    tryDrawRoute();
+  };
+
+  window.renderFavorites = function() {
+    const listDiv = document.getElementById("favoriteList");
+    let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+
+    if (favs.length === 0) {
+      listDiv.innerHTML = "<div style='text-align:center; color:#6b7280; font-size:13px; padding:15px;'>登録されたお気に入りはありません。<br>マップやピンをタップして登録できます。</div>";
+      return;
+    }
+    
+    let html = "<div style='display:flex; flex-direction:column; gap:8px;'>";
+    favs.forEach((f, i) => {
+      html += `
+        <div style="display:flex; align-items:center; justify-content:space-between; background:#f9fafb; border:1px solid #e5e7eb; padding:10px 12px; border-radius:8px;">
+          <div style="font-weight:bold; font-size:14px; color:#374151; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">⭐ ${f.name}</div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="useFavoriteAsDest(${i})" style="padding:6px 10px; font-size:12px; background:#3b82f6; color:white; border:none; border-radius:6px; font-weight:bold;">ここへ行く</button>
+            <button onclick="removeFavorite(${i})" style="padding:6px 10px; font-size:12px; background:#ef4444; color:white; border:none; border-radius:6px; font-weight:bold;">削除</button>
+          </div>
+        </div>
+      `;
+    });
+    html += "</div>";
+    listDiv.innerHTML = html;
+  };
+
+  // ===============================
+  // タブ切り替え処理
+  // ===============================
+  window.switchTab = function(mode) {
+    window.currentMode = mode;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById('routeSearchArea').style.display = 'none';
+    document.getElementById('favoriteArea').style.display = 'none';
+    document.getElementById('routeInfo').style.display = 'none'; 
+    
+    if (mode === 'map') {
+      document.getElementById('tab-map').classList.add('active');
+    } else if (mode === 'route') {
+      document.getElementById('tab-route').classList.add('active');
+      document.getElementById('routeSearchArea').style.display = 'flex';
+      if (routeLine) document.getElementById('routeInfo').style.display = 'flex';
+    } else if (mode === 'favorite') {
+      document.getElementById('tab-favorite').classList.add('active');
+      document.getElementById('favoriteArea').style.display = 'block';
+      renderFavorites();
+    }
+    setTimeout(() => { map.invalidateSize(); }, 100);
+  }
 
   // ===============================
   // 現在地の取得
@@ -262,6 +368,7 @@ function initMap(){
     return L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon));
   }
 
+  // 🟢 出発地ピン（お気に入り登録ボタン付き）
   function setStartMarker(latLng, label) {
     if (!startMarker) {
       startMarker = L.marker(latLng, { icon: greenIcon, draggable: true }).addTo(map);
@@ -272,10 +379,16 @@ function initMap(){
     } else {
       startMarker.setLatLng(latLng);
     }
-    startMarker.bindPopup(`<b>${label}</b><br><span style="font-size:10px;">(長押しスワイプで移動可)</span>`).openPopup();
+    startMarker.bindPopup(`
+      <div style="text-align:center;">
+        <b>${label}</b><br><span style="font-size:10px;">(長押しスワイプで移動可)</span><br>
+        <button onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')" style="margin-top:6px; padding:6px 12px; font-size:12px; background:#f59e0b; color:white; border:none; border-radius:4px; font-weight:bold;">⭐ お気に入りに登録</button>
+      </div>
+    `).openPopup();
     document.getElementById("startDest").value = label;
   }
 
+  // 🔴 目的地ピン（お気に入り登録ボタン付き）
   function setDestMarker(latLng, label) {
     if (!destMarker) {
       destMarker = L.marker(latLng, { icon: redIcon, draggable: true }).addTo(map);
@@ -286,7 +399,12 @@ function initMap(){
     } else {
       destMarker.setLatLng(latLng);
     }
-    destMarker.bindPopup(`<b>${label}</b><br><span style="font-size:10px;">(長押しスワイプで移動可)</span>`).openPopup();
+    destMarker.bindPopup(`
+      <div style="text-align:center;">
+        <b>${label}</b><br><span style="font-size:10px;">(長押しスワイプで移動可)</span><br>
+        <button onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')" style="margin-top:6px; padding:6px 12px; font-size:12px; background:#f59e0b; color:white; border:none; border-radius:4px; font-weight:bold;">⭐ お気に入りに登録</button>
+      </div>
+    `).openPopup();
     document.getElementById("dest").value = label;
   }
 
@@ -294,7 +412,6 @@ function initMap(){
     let startLatLng;
     const startInput = document.getElementById("startDest").value.trim();
 
-    // 出発地が空欄なら現在地を使う
     if (startInput === "" || startInput === "現在地") {
       if (!userMarker) return;
       startLatLng = userMarker.getLatLng();
@@ -329,18 +446,16 @@ function initMap(){
 
       document.getElementById("routeDist").innerText = "距離: " + distStr;
       document.getElementById("routeTime").innerText = timeStr;
-      document.getElementById("routeInfo").style.display = "flex";
+      
+      if (window.currentMode === 'route') {
+        document.getElementById("routeInfo").style.display = "flex";
+      }
 
     } catch(e) {
       console.error(e);
     }
   }
 
-  // ===============================
-  // ユーザーの操作処理
-  // ===============================
-
-  // 📝 検索ボタンを押した時
   window.startNavi = async function(){
     const startInput = document.getElementById("startDest").value.trim();
     const destInput = document.getElementById("dest").value.trim();
@@ -350,20 +465,16 @@ function initMap(){
     navBtn.innerText = "検索中..."; navBtn.disabled = true;
 
     try {
-      // 出発地のテキスト検索
       if (startInput !== "" && startInput !== "現在地" && startInput !== "地図で指定した出発地") {
         const sLatLng = await getLatLngFromText(startInput);
         if (!sLatLng) throw new Error("出発地が見つかりませんでした");
         setStartMarker(sLatLng, startInput);
       }
-
-      // 目的地のテキスト検索
       if (destInput !== "地図で指定した目的地") {
         const dLatLng = await getLatLngFromText(destInput);
         if (!dLatLng) throw new Error("目的地が見つかりませんでした");
         setDestMarker(dLatLng, destInput);
       }
-
       await tryDrawRoute();
     } catch(e) {
       alert(e.message || "エラーが発生しました");
@@ -372,14 +483,29 @@ function initMap(){
     }
   }
 
-  // 👆 地図を「タップ」した時（目的地を指定）
+  // 👆 地図の操作
   map.on('click', function(e) {
-    setDestMarker(e.latlng, "指定した目的地");
-    tryDrawRoute();
+    if (window.currentMode === 'route') {
+      setDestMarker(e.latlng, "指定した目的地");
+      tryDrawRoute();
+    } else if (window.currentMode === 'map') {
+      // 🗺️ マップモードではタップした場所にお気に入り登録用のポップアップを出す
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      L.popup()
+        .setLatLng(e.latlng)
+        .setContent(`
+          <div style="text-align:center;">
+            <b style="font-size:14px;">指定した地点</b><br>
+            <button onclick="addFavorite(${lat}, ${lng}, 'お気に入り地点')" style="margin-top:8px; padding:6px 12px; font-size:12px; background:#f59e0b; color:white; border:none; border-radius:4px; font-weight:bold;">⭐ お気に入りに登録</button>
+          </div>
+        `)
+        .openOn(map);
+    }
   });
 
-  // 👆 地図を「長押し」した時（出発地を指定）
   map.on('contextmenu', function(e) {
+    if (window.currentMode !== 'route') return;
     setStartMarker(e.latlng, "指定した出発地");
     tryDrawRoute();
   });
