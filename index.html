@@ -81,7 +81,7 @@ body {
 
 /* マップ領域 */
 #map-container {
-  flex: 1; width: 100%; position: relative; display: none; overflow: hidden; background: #ddd;
+  flex: 1; width: 100%; position: relative; display: none; overflow: hidden; background: #e5e7eb;
 }
 #map {
   width: 100%; height: 100%; transition: transform 0.4s ease-out;
@@ -218,16 +218,20 @@ function initMap(){
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   // ===============================
-  // バックグラウンド復帰時のバグ対策（地図が消えるのを防ぐ）
+  // 💡バックグラウンド復帰時の超強力な再描画処理
+  // ストリートビューなどから戻った時に地図が消えるのを防ぐ
   // ===============================
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === 'visible' && map) {
-      setTimeout(() => { map.invalidateSize(); }, 200);
+  const forceRedraw = () => {
+    if (map) {
+      setTimeout(() => map.invalidateSize(), 100);
+      setTimeout(() => map.invalidateSize(), 500); // 念のため少し遅らせてもう一度
     }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === 'visible') forceRedraw();
   });
-  window.addEventListener("focus", () => {
-    if (map) setTimeout(() => { map.invalidateSize(); }, 200);
-  });
+  window.addEventListener("focus", forceRedraw);
+  window.addEventListener("pageshow", forceRedraw);
 
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
@@ -248,14 +252,13 @@ function initMap(){
   fetch("https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N1.json")
     .then(res => res.json())
     .then(data => {
-      // 最新の時刻を取得
       const latest = data[0].basetime;
       const radarLayer = L.tileLayer(`https://www.jma.go.jp/bosai/jmatile/data/nowc/${latest}/none/${latest}/surf/hrpns/{z}/{x}/{y}.png`, {
         opacity: 0.6,
         transparent: true,
         zIndex: 1000,
-        maxNativeZoom: 10, // 気象庁はズーム10までサポート
-        maxZoom: 18        // それ以上は画像を自動で引き伸ばす（エラーが出ない）
+        maxNativeZoom: 10,
+        maxZoom: 18
       });
       layerControl.addOverlay(radarLayer, "☔ 雨雲レーダー(気象庁)");
     }).catch(e => console.log("雨雲レーダーの取得に失敗しました"));
