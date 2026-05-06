@@ -256,7 +256,7 @@ function initMap(){
       opacity: 0.6, 
       transparent: true, 
       zIndex: 1000,
-      maxNativeZoom: 12 // ← これを追加！限界を超えたら画像を自動で引き伸ばす
+      maxNativeZoom: 7 // ← これを追加！限界を超えたら画像を自動で引き伸ばす
     });
     layerControl.addOverlay(radarLayer, "☔ 雨雲レーダー");
   }).catch(()=>{});
