@@ -90,6 +90,28 @@ body {
 .leaflet-control-zoom { margin-bottom: 110px !important; margin-right: 15px !important; border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
 .leaflet-control-layers { border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; border-radius: 8px !important; margin-top: 15px !important; margin-right: 15px !important; }
 
+/* 🌟 地図上に浮くボタン群（左下） */
+.bottom-left-controls {
+  position: absolute; bottom: 25px; left: 15px; z-index: 2000;
+  display: flex; gap: 8px; align-items: center;
+}
+.map-floating-btn {
+  border: none; padding: 10px 14px; border-radius: 20px; 
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 13px;
+  cursor: pointer; transition: all 0.2s;
+}
+.heading-btn { background: white; color: #3b82f6; }
+.share-btn { background: #3b82f6; color: white; }
+
+/* ☔ 雨量カラーバー（凡例）のデザイン */
+#rainLegend {
+  display: none; position: absolute; bottom: 75px; left: 15px; z-index: 2000;
+  background: rgba(255, 255, 255, 0.95); padding: 10px; border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 11px; line-height: 1.6; color: #333;
+}
+.legend-row { display: flex; align-items: center; }
+.legend-color { width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; display: inline-block; }
+
 /* 情報パネル類 */
 .route-info-panel {
   position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px;
@@ -100,13 +122,6 @@ body {
 .route-info-panel .dist { font-size: 14px; color: #6b7280; font-weight: bold; }
 .route-info-panel .clear-btn { padding: 10px 16px; font-size: 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 10px; font-weight: bold; }
 
-.heading-btn {
-  position: absolute; bottom: 25px; left: 15px; z-index: 2000; background: white; color: #3b82f6; border: none;
-  padding: 10px 14px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 13px;
-  transition: all 0.2s;
-}
-
-/* 🌟 ポップアップ内のボタンとリンクのデザイン共通化 */
 .popup-buttons { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .popup-buttons button, .popup-buttons a { 
   padding: 6px 12px; font-size: 12px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
@@ -167,7 +182,24 @@ body {
 
 <div id="map-container">
   <div id="map"></div>
-  <button id="headingBtn" class="heading-btn" onclick="toggleHeadingMode()">🧭 追従: オフ</button>
+  
+  <!-- 🌟 左下の操作ボタン群 -->
+  <div class="bottom-left-controls">
+    <button id="headingBtn" class="map-floating-btn heading-btn" onclick="toggleHeadingMode()">🧭 追従: オフ</button>
+    <button class="map-floating-btn share-btn" onclick="shareCurrentLocation()">📤 現在地をシェア</button>
+  </div>
+
+  <!-- ☔ 雨量のカラーバー（凡例） -->
+  <div id="rainLegend">
+    <div style="font-weight:bold; margin-bottom:6px; border-bottom:1px solid #ddd; padding-bottom:4px;">雨量 (mm/h)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#b40068;"></span>80〜 (猛烈な雨)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff2800;"></span>50〜80 (非常に激しい)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff9900;"></span>30〜50 (激しい雨)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#faf500;"></span>20〜30 (強い雨)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#0000ff;"></span>10〜20 (やや強い)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#218cff;"></span>5〜10 (本降り)</div>
+    <div class="legend-row"><span class="legend-color" style="background:#a0d2ff;"></span>1〜5 (弱い雨)</div>
+  </div>
 
   <div id="routeInfo" class="route-info-panel">
     <div>
@@ -201,11 +233,6 @@ function startApp(){
 }
 if(localStorage.getItem("auth")==="ok") startApp();
 
-// ===============================
-// 各種呼び出し機能
-// ===============================
-
-// 🌟 シェア機能
 window.shareLocation = function(lat, lng, name="この場所") {
   const url = `https://www.google.com/maps?q=${lat},${lng}`;
   if (navigator.share) {
@@ -222,7 +249,6 @@ function initMap(){
   setTimeout(() => { map.invalidateSize(); }, 100);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  // バックグラウンド復帰時の再描画処理
   const forceRedraw = () => {
     if (map) {
       setTimeout(() => map.invalidateSize(), 100);
@@ -249,26 +275,25 @@ function initMap(){
   document.getElementById("opacitySlider").addEventListener("input", e => overlayMap.setOpacity(e.target.value));
 
   // ===============================
-  // ☔ 雨雲レーダー（気象庁ナウキャストに変更）
+  // ☔ 雨雲レーダーの追加と凡例表示制御
   // ===============================
   fetch("https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N1.json")
     .then(res => res.json())
     .then(data => {
       const latest = data[0].basetime;
       const radarLayer = L.tileLayer(`https://www.jma.go.jp/bosai/jmatile/data/nowc/${latest}/none/${latest}/surf/hrpns/{z}/{x}/{y}.png`, {
-        opacity: 0.6,
-        transparent: true,
-        zIndex: 1000,
-        maxNativeZoom: 10,
-        maxZoom: 18
+        opacity: 0.6, transparent: true, zIndex: 1000, maxNativeZoom: 10, maxZoom: 18
       });
       layerControl.addOverlay(radarLayer, "☔ 雨雲レーダー(気象庁)");
+
+      map.on('overlayadd', function(e) {
+        if(e.name === "☔ 雨雲レーダー(気象庁)") document.getElementById("rainLegend").style.display = "block";
+      });
+      map.on('overlayremove', function(e) {
+        if(e.name === "☔ 雨雲レーダー(気象庁)") document.getElementById("rainLegend").style.display = "none";
+      });
     }).catch(e => console.log("雨雲レーダーの取得に失敗しました"));
 
-
-  // ===============================
-  // 🕒 履歴 ＆ ⭐ お気に入り 管理
-  // ===============================
   window.addHistory = function(name, lat, lng) {
     let hist = JSON.parse(localStorage.getItem("searchHistory") || "[]");
     hist = hist.filter(h => h.name !== name); 
@@ -386,6 +411,17 @@ function initMap(){
     }
   });
 
+  // 🌟 現在地シェアボタンから呼ばれる関数
+  window.shareCurrentLocation = function() {
+    if (userMarker) {
+      const lat = userMarker.getLatLng().lat;
+      const lng = userMarker.getLatLng().lng;
+      shareLocation(lat, lng, "現在地");
+    } else {
+      alert("現在地を取得中です。少しお待ちください。");
+    }
+  };
+
   navigator.geolocation.watchPosition(pos => {
     const lat = pos.coords.latitude, lng = pos.coords.longitude;
     if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
@@ -409,9 +445,6 @@ function initMap(){
     if (trackingMode === 2) document.getElementById('map').style.transform = `rotate(${-lastHeading}deg) scale(1.4)`;
   }, err => { }, { enableHighAccuracy: true, timeout: 10000 });
 
-  // ===============================
-  // ピンとルートの管理
-  // ===============================
   let startMarker, destMarker, routeLine;
   const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://unpkg.com/leaflet/dist/images/marker-shadow.png', iconSize:[25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34], shadowSize:[41, 41] });
   const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://unpkg.com/leaflet/dist/images/marker-shadow.png', iconSize:[25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34], shadowSize:[41, 41] });
@@ -422,7 +455,6 @@ function initMap(){
     return data.length ? L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon)) : null;
   }
 
-  // 🌟 ストリートビューを安全な <a> タグで開くように変更
   function setStartMarker(latLng, label) {
     if (!startMarker) {
       startMarker = L.marker(latLng, { icon: greenIcon, draggable: true }).addTo(map);
@@ -458,7 +490,7 @@ function initMap(){
       const json = await route.json();
       if (json.code !== "Ok") return alert("ルートが見つかりませんでした");
 
-      const coords = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      const coords = json.routes[0].geometry.coordinates.map(c =>[c[1], c[0]]);
       if (routeLine) map.removeLayer(routeLine);
       routeLine = L.polyline(coords, { color: '#3b82f6', weight: 6, opacity: 0.8 }).addTo(map);
       map.fitBounds(routeLine.getBounds(), { padding:[40, 40] });
