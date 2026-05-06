@@ -106,8 +106,12 @@ body {
   transition: all 0.2s;
 }
 
+/* 🌟 ポップアップ内のボタンとリンクのデザイン共通化 */
 .popup-buttons { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.popup-buttons button { padding: 6px 12px; font-size: 12px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+.popup-buttons button, .popup-buttons a { 
+  padding: 6px 12px; font-size: 12px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+  text-decoration: none; text-align: center; display: block; box-sizing: border-box; font-family: inherit;
+}
 .btn-fav { background: #f59e0b; }
 .btn-sv  { background: #10b981; }
 .btn-share { background: #3b82f6; }
@@ -200,7 +204,8 @@ if(localStorage.getItem("auth")==="ok") startApp();
 // ===============================
 // 各種呼び出し機能
 // ===============================
-window.openStreetView = function(lat, lng) { window.open(`https://www.google.com/maps?layer=c&cbll=${lat},${lng}`, '_blank'); };
+
+// 🌟 シェア機能
 window.shareLocation = function(lat, lng, name="この場所") {
   const url = `https://www.google.com/maps?q=${lat},${lng}`;
   if (navigator.share) {
@@ -217,14 +222,11 @@ function initMap(){
   setTimeout(() => { map.invalidateSize(); }, 100);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  // ===============================
-  // 💡バックグラウンド復帰時の超強力な再描画処理
-  // ストリートビューなどから戻った時に地図が消えるのを防ぐ
-  // ===============================
+  // バックグラウンド復帰時の再描画処理
   const forceRedraw = () => {
     if (map) {
       setTimeout(() => map.invalidateSize(), 100);
-      setTimeout(() => map.invalidateSize(), 500); // 念のため少し遅らせてもう一度
+      setTimeout(() => map.invalidateSize(), 500); 
     }
   };
   document.addEventListener("visibilitychange", () => {
@@ -420,12 +422,13 @@ function initMap(){
     return data.length ? L.latLng(parseFloat(data[0].lat), parseFloat(data[0].lon)) : null;
   }
 
+  // 🌟 ストリートビューを安全な <a> タグで開くように変更
   function setStartMarker(latLng, label) {
     if (!startMarker) {
       startMarker = L.marker(latLng, { icon: greenIcon, draggable: true }).addTo(map);
       startMarker.on('dragend', () => { document.getElementById("startDest").value = "地図で指定"; tryDrawRoute(); });
     } else startMarker.setLatLng(latLng);
-    startMarker.bindPopup(`<div style="text-align:center;"><b>${label}</b><div class="popup-buttons"><button class="btn-sv" onclick="openStreetView(${latLng.lat}, ${latLng.lng})">📸 ストリートビュー</button><button class="btn-share" onclick="shareLocation(${latLng.lat}, ${latLng.lng}, '${label}')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')">⭐ 登録</button></div></div>`).openPopup();
+    startMarker.bindPopup(`<div style="text-align:center;"><b>${label}</b><div class="popup-buttons"><a class="btn-sv" href="https://www.google.com/maps?layer=c&cbll=${latLng.lat},${latLng.lng}" target="_blank" rel="noopener noreferrer">📸 ストリートビュー</a><button class="btn-share" onclick="shareLocation(${latLng.lat}, ${latLng.lng}, '${label}')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')">⭐ 登録</button></div></div>`).openPopup();
     document.getElementById("startDest").value = label;
   }
 
@@ -434,7 +437,7 @@ function initMap(){
       destMarker = L.marker(latLng, { icon: redIcon, draggable: true }).addTo(map);
       destMarker.on('dragend', () => { document.getElementById("dest").value = "地図で指定"; tryDrawRoute(); });
     } else destMarker.setLatLng(latLng);
-    destMarker.bindPopup(`<div style="text-align:center;"><b>${label}</b><div class="popup-buttons"><button class="btn-sv" onclick="openStreetView(${latLng.lat}, ${latLng.lng})">📸 ストリートビュー</button><button class="btn-share" onclick="shareLocation(${latLng.lat}, ${latLng.lng}, '${label}')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')">⭐ 登録</button></div></div>`).openPopup();
+    destMarker.bindPopup(`<div style="text-align:center;"><b>${label}</b><div class="popup-buttons"><a class="btn-sv" href="https://www.google.com/maps?layer=c&cbll=${latLng.lat},${latLng.lng}" target="_blank" rel="noopener noreferrer">📸 ストリートビュー</a><button class="btn-share" onclick="shareLocation(${latLng.lat}, ${latLng.lng}, '${label}')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${latLng.lat}, ${latLng.lng}, '${label}')">⭐ 登録</button></div></div>`).openPopup();
     document.getElementById("dest").value = label;
   }
 
@@ -489,7 +492,7 @@ function initMap(){
   map.on('click', function(e) {
     if (window.currentMode === 'route') { setDestMarker(e.latlng, "指定した目的地"); tryDrawRoute(); }
     else if (window.currentMode === 'map') {
-      L.popup().setLatLng(e.latlng).setContent(`<div style="text-align:center;"><b>指定地点</b><div class="popup-buttons"><button class="btn-sv" onclick="openStreetView(${e.latlng.lat}, ${e.latlng.lng})">📸 ストリートビュー</button><button class="btn-share" onclick="shareLocation(${e.latlng.lat}, ${e.latlng.lng}, '指定地点')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${e.latlng.lat}, ${e.latlng.lng}, 'お気に入り地点')">⭐ 登録</button></div></div>`).openOn(map);
+      L.popup().setLatLng(e.latlng).setContent(`<div style="text-align:center;"><b>指定地点</b><div class="popup-buttons"><a class="btn-sv" href="https://www.google.com/maps?layer=c&cbll=${e.latlng.lat},${e.latlng.lng}" target="_blank" rel="noopener noreferrer">📸 ストリートビュー</a><button class="btn-share" onclick="shareLocation(${e.latlng.lat}, ${e.latlng.lng}, '指定地点')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${e.latlng.lat}, ${e.latlng.lng}, 'お気に入り地点')">⭐ 登録</button></div></div>`).openOn(map);
     }
   });
 
