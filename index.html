@@ -130,6 +130,34 @@ body {
 .btn-fav { background: #f59e0b; }
 .btn-sv  { background: #10b981; }
 .btn-share { background: #3b82f6; }
+
+/* ショートカットボタン */
+.shortcut-area { display: flex; gap: 6px; flex-wrap: wrap; }
+.shortcut-btn {
+  flex: 1; min-width: 0; padding: 10px 6px; font-size: 12px; font-weight: bold;
+  border: none; border-radius: 10px; cursor: pointer; text-align: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12); transition: all 0.15s;
+}
+.shortcut-btn:active { transform: scale(0.96); }
+.sc-shibukiya { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.sc-zando { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+
+/* 入力モード切替 */
+.input-mode-row { display: flex; gap: 6px; }
+.mode-toggle-btn {
+  flex: 1; padding: 7px 4px; font-size: 11px; font-weight: bold;
+  border: 2px solid #d1d5db; background: #f9fafb; color: #6b7280;
+  border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.mode-toggle-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
+
+/* 選択中の入力欄ハイライト */
+.search-row input.picking { border-color: #f59e0b; background: #fffbeb; }
+.pick-hint {
+  font-size: 11px; color: #f59e0b; font-weight: bold; text-align: center;
+  padding: 4px 0; display: none; animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 </style>
 </head>
 
@@ -152,15 +180,24 @@ body {
   </div>
 
   <div class="search-group" id="routeSearchArea" style="display: none;">
+    <div class="shortcut-area">
+      <button class="shortcut-btn sc-shibukiya" onclick="quickDest(35.601903,137.92837,'シブキヤ')">📍 シブキヤ</button>
+      <button class="shortcut-btn sc-zando" onclick="quickDest(35.596427,137.941892,'残土処理場')">📍 残土処理場</button>
+    </div>
+    <div class="input-mode-row">
+      <button class="mode-toggle-btn active" id="modeMapBtn" onclick="setInputMode('map')">📍 地図タップで指定</button>
+      <button class="mode-toggle-btn" id="modeSearchBtn" onclick="setInputMode('search')">🔍 テキスト検索</button>
+    </div>
     <div class="search-row">
       <div class="search-label">出発</div>
-      <input id="startDest" placeholder="現在地 (地図を長押しで変更可)">
+      <input id="startDest" placeholder="現在地（タップで変更）" readonly onclick="activatePick('start')">
     </div>
     <div class="search-row">
       <div class="search-label">到着</div>
-      <input id="dest" placeholder="目的地 (入力 または タップで指定)">
+      <input id="dest" placeholder="地図をタップして目的地を指定" readonly onclick="activatePick('dest')">
       <button onclick="startNavi()" class="nav-btn" id="navBtn">検索</button>
     </div>
+    <div class="pick-hint" id="pickHint">🗺️ 地図をタップして地点を指定してください</div>
   </div>
 
   <div id="favoriteArea" style="display: none;">
@@ -377,6 +414,9 @@ function initMap(){
   let userMarker;
   let trackingMode = 0; 
   let lastHeading = 0;
+  let lastRouteUpdate = 0;
+  let inputMode = 'map'; // 'map' or 'search'
+  let pickTarget = null; // 'start' or 'dest'
 
   window.toggleHeadingMode = function() {
     trackingMode = (trackingMode + 1) % 3;
@@ -443,6 +483,18 @@ function initMap(){
 
     if (trackingMode > 0) map.setView([lat, lng]); 
     if (trackingMode === 2) document.getElementById('map').style.transform = `rotate(${-lastHeading}deg) scale(1.4)`;
+
+    // ① リアルタイムルート更新（10秒間隔）
+    if (routeLine && destMarker) {
+      const now = Date.now();
+      if (now - lastRouteUpdate > 10000) {
+        lastRouteUpdate = now;
+        const startVal = document.getElementById('startDest').value.trim();
+        if (startVal === '' || startVal === '現在地') {
+          tryDrawRoute();
+        }
+      }
+    }
   }, err => { }, { enableHighAccuracy: true, timeout: 10000 });
 
   let startMarker, destMarker, routeLine;
@@ -521,22 +573,92 @@ function initMap(){
     } catch(e) { alert("エラーが発生しました"); } finally { navBtn.innerText = "検索"; navBtn.disabled = false; }
   }
 
+  // ② 入力モード切替
+  window.setInputMode = function(mode) {
+    inputMode = mode;
+    const startEl = document.getElementById('startDest');
+    const destEl = document.getElementById('dest');
+    const mapBtn = document.getElementById('modeMapBtn');
+    const searchBtn = document.getElementById('modeSearchBtn');
+    const navBtn = document.getElementById('navBtn');
+    pickTarget = null;
+    startEl.classList.remove('picking');
+    destEl.classList.remove('picking');
+    document.getElementById('pickHint').style.display = 'none';
+
+    if (mode === 'map') {
+      mapBtn.classList.add('active'); searchBtn.classList.remove('active');
+      startEl.readOnly = true; destEl.readOnly = true;
+      startEl.placeholder = '現在地（タップで変更）';
+      destEl.placeholder = '地図をタップして目的地を指定';
+      navBtn.style.display = 'none';
+    } else {
+      searchBtn.classList.add('active'); mapBtn.classList.remove('active');
+      startEl.readOnly = false; destEl.readOnly = false;
+      startEl.placeholder = '出発地を入力（空欄=現在地）';
+      destEl.placeholder = '目的地を入力して検索';
+      navBtn.style.display = '';
+    }
+  };
+
+  window.activatePick = function(target) {
+    if (inputMode !== 'map') return;
+    pickTarget = target;
+    const startEl = document.getElementById('startDest');
+    const destEl = document.getElementById('dest');
+    startEl.classList.remove('picking');
+    destEl.classList.remove('picking');
+    if (target === 'start') startEl.classList.add('picking');
+    else destEl.classList.add('picking');
+    document.getElementById('pickHint').style.display = 'block';
+  };
+
+  // ③ ショートカット目的地
+  window.quickDest = function(lat, lng, name) {
+    switchTab('route');
+    setDestMarker(L.latLng(lat, lng), name);
+    document.getElementById('dest').value = name;
+    // 出発地が未設定なら現在地を使用
+    const startVal = document.getElementById('startDest').value.trim();
+    if (startVal === '' || startVal === '現在地（タップで変更）') {
+      document.getElementById('startDest').value = '現在地';
+    }
+    tryDrawRoute();
+  };
+
   map.on('click', function(e) {
-    if (window.currentMode === 'route') { setDestMarker(e.latlng, "指定した目的地"); tryDrawRoute(); }
+    if (window.currentMode === 'route') {
+      if (pickTarget === 'start') {
+        setStartMarker(e.latlng, '指定した出発地');
+        pickTarget = null;
+        document.getElementById('startDest').classList.remove('picking');
+        document.getElementById('pickHint').style.display = 'none';
+      } else {
+        setDestMarker(e.latlng, '指定した目的地');
+        pickTarget = null;
+        document.getElementById('dest').classList.remove('picking');
+        document.getElementById('pickHint').style.display = 'none';
+      }
+      tryDrawRoute();
+    }
     else if (window.currentMode === 'map') {
       L.popup().setLatLng(e.latlng).setContent(`<div style="text-align:center;"><b>指定地点</b><div class="popup-buttons"><a class="btn-sv" href="https://www.google.com/maps?layer=c&cbll=${e.latlng.lat},${e.latlng.lng}" target="_blank" rel="noopener noreferrer">📸 ストリートビュー</a><button class="btn-share" onclick="shareLocation(${e.latlng.lat}, ${e.latlng.lng}, '指定地点')">📤 シェア</button><button class="btn-fav" onclick="addFavorite(${e.latlng.lat}, ${e.latlng.lng}, 'お気に入り地点')">⭐ 登録</button></div></div>`).openOn(map);
     }
   });
 
-  map.on('contextmenu', function(e) { if (window.currentMode === 'route') { setStartMarker(e.latlng, "指定した出発地"); tryDrawRoute(); } });
+  map.on('contextmenu', function(e) { if (window.currentMode === 'route') { setStartMarker(e.latlng, '指定した出発地'); tryDrawRoute(); } });
 
   window.clearRoute = function() {
     if (routeLine) map.removeLayer(routeLine);
     if (destMarker) map.removeLayer(destMarker);
     if (startMarker) map.removeLayer(startMarker);
     routeLine = destMarker = startMarker = null;
-    document.getElementById("routeInfo").style.display = "none";
-    document.getElementById("startDest").value = document.getElementById("dest").value = "";
+    document.getElementById('routeInfo').style.display = 'none';
+    document.getElementById('startDest').value = document.getElementById('dest').value = '';
+    pickTarget = null;
+    document.getElementById('startDest').classList.remove('picking');
+    document.getElementById('dest').classList.remove('picking');
+    document.getElementById('pickHint').style.display = 'none';
     if (userMarker) map.setView(userMarker.getLatLng(), 15);
   };
 }
