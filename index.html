@@ -158,6 +158,41 @@ body {
   padding: 4px 0; display: none; animation: pulse 1.5s infinite;
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+/* 複数ルート切替 */
+.route-alt-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.route-alt-btn {
+  flex: 1; padding: 6px 4px; font-size: 11px; font-weight: bold;
+  border: 2px solid #d1d5db; background: #f9fafb; color: #6b7280;
+  border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
+  white-space: nowrap;
+}
+.route-alt-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
+.start-navi-btn {
+  margin-top: 10px; width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
+  background: linear-gradient(135deg, #10b981, #059669); color: white;
+  border: none; border-radius: 12px; cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16,185,129,0.4); transition: all 0.2s;
+}
+.start-navi-btn:active { transform: scale(0.97); }
+
+/* ナビゲーションバー */
+#naviBar {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  color: white; z-index: 3000; padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+}
+.navi-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.navi-direction-icon { font-size: 32px; line-height: 1; }
+.navi-instruction { flex: 1; }
+.navi-next { font-size: 18px; font-weight: bold; }
+.navi-dist-next { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+.navi-bottom { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; }
+.navi-eta { font-size: 13px; opacity: 0.85; }
+.navi-remain { font-size: 20px; font-weight: bold; }
+.navi-stop-btn { padding: 8px 16px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; }
 </style>
 </head>
 
@@ -201,11 +236,11 @@ body {
   </div>
 
   <div id="favoriteArea" style="display: none;">
-    <div class="list-section-title">🕒 最近の検索</div>
-    <div id="historyList"></div>
-    <hr style="border:0; border-top:1px solid #d1d5db; margin: 12px 0;">
     <div class="list-section-title">⭐ お気に入り</div>
     <div id="favoriteList"></div>
+    <hr style="border:0; border-top:1px solid #d1d5db; margin: 12px 0;">
+    <div class="list-section-title">🕒 最近の検索</div>
+    <div id="historyList"></div>
   </div>
 
   <div class="settings-row">
@@ -224,6 +259,7 @@ body {
   <div class="bottom-left-controls">
     <button id="headingBtn" class="map-floating-btn heading-btn" onclick="toggleHeadingMode()">🧭 追従: オフ</button>
     <button class="map-floating-btn share-btn" onclick="shareCurrentLocation()">📤 現在地をシェア</button>
+    <button class="map-floating-btn" style="background:#f59e0b;color:white;" onclick="addCurrentLocationToFavorite()">⭐ 現在地を登録</button>
   </div>
 
   <!-- ☔ 雨量のカラーバー（凡例） -->
@@ -238,12 +274,34 @@ body {
     <div class="legend-row"><span class="legend-color" style="background:#a0d2ff;"></span>1〜5 (弱い雨)</div>
   </div>
 
-  <div id="routeInfo" class="route-info-panel">
-    <div>
-      <div class="time" id="routeTime">-- 分</div>
-      <div class="dist" id="routeDist">-- km</div>
+  <div id="routeInfo" class="route-info-panel" style="flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+      <div>
+        <div class="time" id="routeTime">-- 分</div>
+        <div class="dist" id="routeDist">-- km</div>
+      </div>
+      <button onclick="clearRoute()" class="clear-btn">✖ 終了</button>
     </div>
-    <button onclick="clearRoute()" class="clear-btn">✖ 案内終了</button>
+    <div class="route-alt-btns" id="routeAltBtns"></div>
+    <button class="start-navi-btn" onclick="startNavigationMode()">🗺️ 案内開始</button>
+  </div>
+
+  <!-- ナビゲーションバー -->
+  <div id="naviBar">
+    <div class="navi-top">
+      <div class="navi-direction-icon" id="naviDirIcon">⬆️</div>
+      <div class="navi-instruction">
+        <div class="navi-next" id="naviNext">直進</div>
+        <div class="navi-dist-next" id="naviDistNext">---</div>
+      </div>
+    </div>
+    <div class="navi-bottom">
+      <div>
+        <div class="navi-remain" id="naviRemain">-- 分</div>
+        <div class="navi-eta" id="naviEta">到着予定: --:--</div>
+      </div>
+      <button class="navi-stop-btn" onclick="stopNavigation()">■ 案内終了</button>
+    </div>
   </div>
 </div>
 
@@ -365,12 +423,23 @@ function initMap(){
     tryDrawRoute();
   };
 
+  window.useLocationAsStart = function(lat, lng, name) {
+    switchTab('route');
+    setStartMarker(L.latLng(lat, lng), name);
+    document.getElementById("startDest").value = name;
+    tryDrawRoute();
+  };
+
   window.renderLists = function() {
     let hist = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+    const btnStyle = "padding:5px 9px; font-size:11px; font-weight:bold; color:white; border:none; border-radius:5px; cursor:pointer;";
     let hHtml = hist.length ? hist.map(h => `
       <div style="display:flex; justify-content:space-between; align-items:center; background:#f9fafb; border:1px solid #e5e7eb; padding:8px 12px; border-radius:8px; margin-bottom:6px;">
-        <div style="font-size:13px; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${h.name}</div>
-        <button onclick="useLocationAsDest(${h.lat}, ${h.lng}, '${h.name}')" style="padding:4px 8px; font-size:11px; background:#10b981; color:white; border:none; border-radius:4px;">ここへ</button>
+        <div style="font-size:13px; color:#374151; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">${h.name}</div>
+        <div style="display:flex; gap:5px; margin-left:8px; flex-shrink:0;">
+          <button onclick="useLocationAsStart(${h.lat}, ${h.lng}, '${h.name}')" style="${btnStyle} background:#10b981;">🚩 出発</button>
+          <button onclick="useLocationAsDest(${h.lat}, ${h.lng}, '${h.name}')" style="${btnStyle} background:#3b82f6;">🏁 到着</button>
+        </div>
       </div>
     `).join("") : "<div style='font-size:12px; color:#9ca3af;'>履歴はありません</div>";
     document.getElementById("historyList").innerHTML = hHtml;
@@ -378,10 +447,11 @@ function initMap(){
     let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
     let fHtml = favs.length ? favs.map((f, i) => `
       <div style="display:flex; justify-content:space-between; align-items:center; background:#f9fafb; border:1px solid #e5e7eb; padding:8px 12px; border-radius:8px; margin-bottom:6px;">
-        <div style="font-size:13px; font-weight:bold; color:#374151;">${f.name}</div>
-        <div style="display:flex; gap:6px;">
-          <button onclick="useLocationAsDest(${f.lat}, ${f.lng}, '${f.name}')" style="padding:4px 8px; font-size:11px; background:#3b82f6; color:white; border:none; border-radius:4px;">ここへ</button>
-          <button onclick="removeFavorite(${i})" style="padding:4px 8px; font-size:11px; background:#ef4444; color:white; border:none; border-radius:4px;">✖</button>
+        <div style="font-size:13px; font-weight:bold; color:#374151; flex:1;">${f.name}</div>
+        <div style="display:flex; gap:5px; margin-left:8px; flex-shrink:0;">
+          <button onclick="useLocationAsStart(${f.lat}, ${f.lng}, '${f.name}')" style="${btnStyle} background:#10b981;">🚩 出発</button>
+          <button onclick="useLocationAsDest(${f.lat}, ${f.lng}, '${f.name}')" style="${btnStyle} background:#3b82f6;">🏁 到着</button>
+          <button onclick="removeFavorite(${i})" style="${btnStyle} background:#ef4444;">✖</button>
         </div>
       </div>
     `).join("") : "<div style='font-size:12px; color:#9ca3af;'>お気に入りはありません</div>";
@@ -462,6 +532,14 @@ function initMap(){
     }
   };
 
+  // ⭐ 現在地をお気に入り登録
+  window.addCurrentLocationToFavorite = function() {
+    if (!userMarker) { alert("現在地を取得中です。少しお待ちください。"); return; }
+    const lat = userMarker.getLatLng().lat;
+    const lng = userMarker.getLatLng().lng;
+    addFavorite(lat, lng, "現在地");
+  };
+
   navigator.geolocation.watchPosition(pos => {
     const lat = pos.coords.latitude, lng = pos.coords.longitude;
     if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
@@ -525,6 +603,16 @@ function initMap(){
     document.getElementById("dest").value = label;
   }
 
+  let allRoutes = []; // 複数ルート案を保持
+  let routeLines = []; // 複数ポリラインを保持
+  let activeRouteIdx = 0;
+  let naviSteps = [];
+  let naviStepIdx = 0;
+  let naviInterval = null;
+
+  const ROUTE_COLORS = ['#2563eb', '#10b981', '#f59e0b'];
+  const ROUTE_LABELS = ['ルート1', 'ルート2', 'ルート3'];
+
   async function tryDrawRoute() {
     let startLatLng;
     const startInput = document.getElementById("startDest").value.trim();
@@ -538,26 +626,187 @@ function initMap(){
     const destLatLng = destMarker.getLatLng();
 
     try {
-      const route = await fetch(`https://router.project-osrm.org/route/v1/driving/${startLatLng.lng},${startLatLng.lat};${destLatLng.lng},${destLatLng.lat}?overview=full&geometries=geojson`);
-      const json = await route.json();
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${startLatLng.lng},${startLatLng.lat};${destLatLng.lng},${destLatLng.lat}?overview=full&geometries=geojson&alternatives=true&steps=true`);
+      const json = await res.json();
       if (json.code !== "Ok") return alert("ルートが見つかりませんでした");
 
-      const coords = json.routes[0].geometry.coordinates.map(c =>[c[1], c[0]]);
-      if (routeLine) map.removeLayer(routeLine);
-      routeLine = L.polyline(coords, { color: '#3b82f6', weight: 6, opacity: 0.8 }).addTo(map);
-      map.fitBounds(routeLine.getBounds(), { padding:[40, 40] });
+      // 既存ルートラインをすべて削除
+      routeLines.forEach(l => map.removeLayer(l));
+      routeLines = [];
+      if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
 
-      const dist = json.routes[0].distance, dur = json.routes[0].duration;
-      document.getElementById("routeDist").innerText = "距離: " + (dist < 1000 ? Math.round(dist) + " m" : (dist/1000).toFixed(1) + " km");
-      const m = Math.ceil(dur / 60);
-      document.getElementById("routeTime").innerText = m >= 60 ? Math.floor(m/60) + "時間 " + (m%60) + "分" : m + " 分";
-      
-      if (window.currentMode === 'route') document.getElementById("routeInfo").style.display = "flex";
+      allRoutes = json.routes;
+      activeRouteIdx = 0;
+
+      // 全ルートを描画（非アクティブは薄く）
+      allRoutes.forEach((r, i) => {
+        const coords = r.geometry.coordinates.map(c => [c[1], c[0]]);
+        const pl = L.polyline(coords, {
+          color: ROUTE_COLORS[i] || '#888',
+          weight: i === 0 ? 7 : 5,
+          opacity: i === 0 ? 0.9 : 0.4
+        }).addTo(map);
+        routeLines.push(pl);
+      });
+      routeLine = routeLines[0]; // 互換性のため
+      map.fitBounds(routeLines[0].getBounds(), { padding:[40, 40] });
+
+      // ルート切替ボタンを生成
+      const altBtns = document.getElementById('routeAltBtns');
+      altBtns.innerHTML = allRoutes.map((r, i) => {
+        const dist = r.distance < 1000 ? Math.round(r.distance) + 'm' : (r.distance/1000).toFixed(1) + 'km';
+        const min = Math.ceil(r.duration / 60);
+        const time = min >= 60 ? Math.floor(min/60) + 'h' + (min%60) + 'm' : min + '分';
+        return `<button class="route-alt-btn${i===0?' active':''}" onclick="selectRoute(${i})" style="border-color:${ROUTE_COLORS[i]||'#888'};${i===0?'background:'+ROUTE_COLORS[i]+';color:white;':''}">` +
+          `${ROUTE_LABELS[i]}<br><small>${dist} ${time}</small></button>`;
+      }).join('');
+
+      // アクティブルートの情報を表示
+      showRouteInfo(0);
 
       const destName = document.getElementById("dest").value;
       if (destName && destName !== "地図で指定") addHistory(destName, destLatLng.lat, destLatLng.lng);
 
     } catch(e) { console.error(e); }
+  }
+
+  function showRouteInfo(idx) {
+    if (!allRoutes[idx]) return;
+    const r = allRoutes[idx];
+    const dist = r.distance, dur = r.duration;
+    document.getElementById("routeDist").innerText = "距離: " + (dist < 1000 ? Math.round(dist) + " m" : (dist/1000).toFixed(1) + " km");
+    const m = Math.ceil(dur / 60);
+    document.getElementById("routeTime").innerText = m >= 60 ? Math.floor(m/60) + "時間 " + (m%60) + "分" : m + " 分";
+    if (window.currentMode === 'route') document.getElementById("routeInfo").style.display = "flex";
+  }
+
+  window.selectRoute = function(idx) {
+    if (!allRoutes[idx]) return;
+    activeRouteIdx = idx;
+    // ラインの太さ・透明度を更新
+    routeLines.forEach((pl, i) => {
+      pl.setStyle({ weight: i === idx ? 7 : 5, opacity: i === idx ? 0.9 : 0.35 });
+      if (i === idx) pl.bringToFront();
+    });
+    routeLine = routeLines[idx];
+    // ボタンのアクティブ状態を更新
+    document.querySelectorAll('.route-alt-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', i === idx);
+      btn.style.background = i === idx ? ROUTE_COLORS[i] || '#888' : '';
+      btn.style.color = i === idx ? 'white' : '';
+      btn.style.borderColor = ROUTE_COLORS[i] || '#888';
+    });
+    showRouteInfo(idx);
+  };
+
+  // ===== 🗺️ GoogleMaps風 案内開始 =====
+  window.startNavigationMode = function() {
+    if (!userMarker) { alert("現在地を取得中です。"); return; }
+    if (!allRoutes[activeRouteIdx]) { alert("先にルートを検索してください。"); return; }
+
+    // ステップ情報を取得
+    naviSteps = [];
+    const legs = allRoutes[activeRouteIdx].legs || [];
+    legs.forEach(leg => {
+      (leg.steps || []).forEach(step => naviSteps.push(step));
+    });
+    naviStepIdx = 0;
+
+    // ルート情報パネルを隠す
+    document.getElementById('routeInfo').style.display = 'none';
+    switchTab('map');
+
+    // 現在地を拡大してナビモードへ
+    const pos = userMarker.getLatLng();
+    map.flyTo(pos, 17, { animate: true, duration: 1.2 });
+
+    // 進行方向追従モードをON
+    trackingMode = 2;
+    const btn = document.getElementById('headingBtn');
+    btn.innerText = "🧭 追従: 進行方向"; btn.style.background = "#f59e0b"; btn.style.color = "white";
+    map.dragging.disable();
+    document.querySelector('.leaflet-control-container').style.display = 'none';
+    document.getElementById('map').style.transform = `rotate(${-lastHeading}deg) scale(1.4)`;
+
+    // ナビバー表示
+    document.getElementById('naviBar').style.display = 'block';
+    updateNaviBar();
+
+    // 定期更新（5秒ごとにナビ情報を更新）
+    if (naviInterval) clearInterval(naviInterval);
+    naviInterval = setInterval(updateNaviBar, 5000);
+  };
+
+  window.stopNavigation = function() {
+    if (naviInterval) { clearInterval(naviInterval); naviInterval = null; }
+    document.getElementById('naviBar').style.display = 'none';
+    // 追従モードをオフ
+    trackingMode = 0;
+    const btn = document.getElementById('headingBtn');
+    btn.innerText = "🧭 追従: オフ"; btn.style.background = "white"; btn.style.color = "#3b82f6";
+    document.getElementById('map').style.transform = "rotate(0deg) scale(1)";
+    document.querySelector('.leaflet-control-container').style.display = 'block';
+    map.dragging.enable();
+    switchTab('route');
+  };
+
+  function updateNaviBar() {
+    if (!allRoutes[activeRouteIdx] || !userMarker) return;
+    const r = allRoutes[activeRouteIdx];
+    const dur = r.duration;
+    const dist = r.distance;
+    const m = Math.ceil(dur / 60);
+    document.getElementById('naviRemain').innerText = m >= 60 ? Math.floor(m/60) + "時間" + (m%60) + "分" : m + " 分";
+    const eta = new Date(Date.now() + dur * 1000);
+    document.getElementById('naviEta').innerText = '到着予定: ' + eta.getHours().toString().padStart(2,'0') + ':' + eta.getMinutes().toString().padStart(2,'0');
+
+    // 現在地に最も近いステップを探す
+    if (naviSteps.length > 0) {
+      const pos = userMarker.getLatLng();
+      let minDist = Infinity, bestIdx = 0;
+      naviSteps.forEach((step, i) => {
+        if (step.maneuver && step.maneuver.location) {
+          const [sLng, sLat] = step.maneuver.location;
+          const d = pos.distanceTo(L.latLng(sLat, sLng));
+          if (d < minDist) { minDist = d; bestIdx = i; }
+        }
+      });
+      naviStepIdx = Math.min(bestIdx + 1, naviSteps.length - 1);
+      const step = naviSteps[naviStepIdx];
+      const type = step.maneuver ? step.maneuver.type : '';
+      const modifier = step.maneuver ? (step.maneuver.modifier || '') : '';
+      document.getElementById('naviDirIcon').innerText = getTurnIcon(type, modifier);
+      const name = step.name || '目的地方面';
+      document.getElementById('naviNext').innerText = getManeuverText(type, modifier) + (name ? '「' + name + '」' : '');
+      const stepDist = step.distance || 0;
+      document.getElementById('naviDistNext').innerText = stepDist < 1000 ? Math.round(stepDist) + 'm 先' : (stepDist/1000).toFixed(1) + 'km 先';
+    }
+  }
+
+  function getTurnIcon(type, modifier) {
+    if (type === 'arrive') return '🏁';
+    if (type === 'depart') return '🚀';
+    if (modifier === 'left') return '⬅️';
+    if (modifier === 'right') return '➡️';
+    if (modifier === 'slight left') return '↖️';
+    if (modifier === 'slight right') return '↗️';
+    if (modifier === 'sharp left') return '↩️';
+    if (modifier === 'sharp right') return '↪️';
+    if (modifier === 'uturn') return '🔄';
+    return '⬆️';
+  }
+
+  function getManeuverText(type, modifier) {
+    if (type === 'arrive') return '目的地に到着';
+    if (type === 'depart') return '出発';
+    if (modifier === 'left') return '左折';
+    if (modifier === 'right') return '右折';
+    if (modifier === 'slight left') return 'やや左';
+    if (modifier === 'slight right') return 'やや右';
+    if (modifier === 'sharp left') return '鋭角左折';
+    if (modifier === 'sharp right') return '鋭角右折';
+    if (modifier === 'uturn') return 'Uターン';
+    return '直進';
   }
 
   window.startNavi = async function(){
@@ -649,11 +898,18 @@ function initMap(){
   map.on('contextmenu', function(e) { if (window.currentMode === 'route') { setStartMarker(e.latlng, '指定した出発地'); tryDrawRoute(); } });
 
   window.clearRoute = function() {
+    // 複数ルートラインをすべて削除
+    routeLines.forEach(l => map.removeLayer(l));
+    routeLines = [];
     if (routeLine) map.removeLayer(routeLine);
     if (destMarker) map.removeLayer(destMarker);
     if (startMarker) map.removeLayer(startMarker);
     routeLine = destMarker = startMarker = null;
+    allRoutes = []; activeRouteIdx = 0;
     document.getElementById('routeInfo').style.display = 'none';
+    document.getElementById('routeAltBtns').innerHTML = '';
+    document.getElementById('naviBar').style.display = 'none';
+    if (naviInterval) { clearInterval(naviInterval); naviInterval = null; }
     document.getElementById('startDest').value = document.getElementById('dest').value = '';
     pickTarget = null;
     document.getElementById('startDest').classList.remove('picking');
