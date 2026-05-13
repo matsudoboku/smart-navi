@@ -112,6 +112,17 @@ body {
 .legend-row { display: flex; align-items: center; }
 .legend-color { width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; display: inline-block; }
 
+/* 🗾 ハザードマップ凡例 */
+.hazard-legend {
+  display: none; position: absolute; left: 15px; z-index: 2000;
+  background: rgba(255,255,255,0.95); padding: 10px; border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 11px; line-height: 1.7; color: #333;
+  max-width: 200px;
+}
+#floodLegend { bottom: 220px; }
+#sedimentLegend { bottom: 370px; }
+#tsunamiLegend { bottom: 460px; }
+
 /* 情報パネル類 */
 .route-info-panel {
   position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 400px;
@@ -211,6 +222,7 @@ body {
   <div class="tabs">
     <button class="tab-btn active" id="tab-map" onclick="switchTab('map')">🗺️ マップ</button>
     <button class="tab-btn" id="tab-route" onclick="switchTab('route')">🚗 検索・ルート</button>
+    <button class="tab-btn" id="tab-route-number" onclick="switchTab('route-number')">🛣️ 路線検索</button>
     <button class="tab-btn" id="tab-favorite" onclick="switchTab('favorite')">⭐ 履歴・お気に入り</button>
   </div>
 
@@ -233,6 +245,17 @@ body {
       <button onclick="startNavi()" class="nav-btn" id="navBtn">検索</button>
     </div>
     <div class="pick-hint" id="pickHint">🗺️ 地図をタップして地点を指定してください</div>
+  </div>
+
+  <div class="search-group" id="routeNumberSearchArea" style="display: none;">
+    <div class="search-row">
+      <div class="search-label">路線番号</div>
+      <input id="routeNumberInput" placeholder="路線番号を入力（例：2193）" type="text">
+      <button onclick="searchRouteNumber()" class="nav-btn" id="searchRouteBtn">検索</button>
+    </div>
+    <div id="routeNumberResultList" style="max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 10px;">
+      <div style="font-size:12px; color:#9ca3af; text-align: center;">路線番号を入力して検索</div>
+    </div>
   </div>
 
   <div id="favoriteArea" style="display: none;">
@@ -274,6 +297,38 @@ body {
     <div class="legend-row"><span class="legend-color" style="background:#a0d2ff;"></span>1〜5 (弱い雨)</div>
   </div>
 
+  <!-- 🗾 洪水浸水想定区域 凡例 -->
+  <div id="floodLegend" class="hazard-legend">
+    <div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #ddd; padding-bottom:3px;">🌊 洪水浸水想定区域</div>
+    <div class="legend-row"><span class="legend-color" style="background:#0000ff; opacity:0.6;"></span>〜0.5m未満</div>
+    <div class="legend-row"><span class="legend-color" style="background:#00ffff; opacity:0.6;"></span>0.5〜1.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#00ff00; opacity:0.6;"></span>1.0〜2.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ffff00; opacity:0.6;"></span>2.0〜3.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff8800; opacity:0.6;"></span>3.0〜5.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff0000; opacity:0.6;"></span>5.0〜10.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#9900cc; opacity:0.6;"></span>10.0m以上</div>
+    <div style="margin-top:4px; font-size:10px; color:#888;">出典: 国土地理院</div>
+  </div>
+
+  <!-- 🟥 土砂災害警戒区域 凡例 -->
+  <div id="sedimentLegend" class="hazard-legend">
+    <div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #ddd; padding-bottom:3px;">⛰️ 土砂災害警戒区域</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff0000;"></span>特別警戒区域（レッド）</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ffff00; border:1px solid #ccc;"></span>警戒区域（イエロー）</div>
+    <div style="margin-top:4px; font-size:10px; color:#888;">出典: 国土地理院</div>
+  </div>
+
+  <!-- 🌊 津波浸水想定 凡例 -->
+  <div id="tsunamiLegend" class="hazard-legend">
+    <div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #ddd; padding-bottom:3px;">🌊 津波浸水想定</div>
+    <div class="legend-row"><span class="legend-color" style="background:#00bfff; opacity:0.6;"></span>〜1.0m未満</div>
+    <div class="legend-row"><span class="legend-color" style="background:#0080ff; opacity:0.6;"></span>1.0〜2.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#0000ff; opacity:0.6;"></span>2.0〜5.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#8000ff; opacity:0.6;"></span>5.0〜10.0m</div>
+    <div class="legend-row"><span class="legend-color" style="background:#ff0000; opacity:0.6;"></span>10.0m以上</div>
+    <div style="margin-top:4px; font-size:10px; color:#888;">出典: 国土地理院</div>
+  </div>
+
   <div id="routeInfo" class="route-info-panel" style="flex-direction:column;">
     <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
       <div>
@@ -306,6 +361,7 @@ body {
 </div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="routes_data.js"></script>
 
 <script>
 if ('serviceWorker' in navigator) {
@@ -359,18 +415,83 @@ function initMap(){
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
   const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg');
+  const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {maxZoom: 17, attribution: '© OpenTopoMap'});
+  const usgsImagery = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImagery/MapServer/tile/{z}/{y}/{x}', {attribution: '© USGS'});
 
   const bounds = [[35.56067448087151,137.8541959968587],[35.64990221454237,138.00811173499673]];
   const overlayMap = L.imageOverlay('map.png', bounds, { opacity: 0.7 }).addTo(map);
 
   let layerControl = L.control.layers({
-    "通常地図": osm, "航空写真（Esri）": esri, "航空写真（国土地理院）": gsi
+    "通常地図": osm, "航空写真（Esri）": esri, "航空写真（国土地理院）": gsi, "OpenTopoMap": openTopo, "USGS航空写真": usgsImagery
   },{"町道図": overlayMap}).addTo(map);
 
   document.getElementById("opacitySlider").addEventListener("input", e => overlayMap.setOpacity(e.target.value));
 
   // ===============================
-  // ☔ 雨雲レーダーの追加と凡例表示制御
+  // 🗾 ハザードマップ（国土地理院）の追加
+  // ===============================
+  // 洪水浸水想定区域（想定最大規模）
+  const floodTile = L.tileLayer(
+    'https://disaportal.gsi.go.jp/maps/tiles/flood_l2_shinsuishin/{z}/{x}/{y}.png?t={timestamp}',
+    { opacity: 0.55, transparent: true, zIndex: 900, maxZoom: 17, maxNativeZoom: 17,
+      attribution: '© 国土地理院ハザードマップポータル',
+      timestamp: Date.now() }
+  );
+  // 土砂災害警戒区域（特別警戒：レッド）
+  const sedimentRedTile = L.tileLayer(
+    'https://disaportal.gsi.go.jp/maps/tiles/doshasaigai_keikaikuiki_red/{z}/{x}/{y}.png?t={timestamp}',
+    { opacity: 0.7, transparent: true, zIndex: 910, maxZoom: 17, maxNativeZoom: 17,
+      attribution: '© 国土地理院',
+      timestamp: Date.now() }
+  );
+  // 土砂災害警戒区域（警戒：イエロー）
+  const sedimentYellowTile = L.tileLayer(
+    'https://disaportal.gsi.go.jp/maps/tiles/doshasaigai_keikaikuiki_yellow/{z}/{x}/{y}.png?t={timestamp}',
+    { opacity: 0.7, transparent: true, zIndex: 905, maxZoom: 17, maxNativeZoom: 17,
+      attribution: '© 国土地理院',
+      timestamp: Date.now() }
+  );
+  // 津波浸水想定
+  const tsunamiTile = L.tileLayer(
+    'https://disaportal.gsi.go.jp/maps/tiles/tsunami_newlegend_2/{z}/{x}/{y}.png?t={timestamp}',
+    { opacity: 0.6, transparent: true, zIndex: 895, maxZoom: 17, maxNativeZoom: 17,
+      attribution: '© 国土地理院',
+      timestamp: Date.now() }
+  );
+
+  layerControl.addOverlay(floodTile,        "🌊 洪水浸水想定区域");
+  layerControl.addOverlay(sedimentRedTile,  "🟥 土砂災害警戒（特別警戒・赤）");
+  layerControl.addOverlay(sedimentYellowTile, "🟨 土砂災害警戒（警戒・黄）");
+  layerControl.addOverlay(tsunamiTile,      "🌊 津波浸水想定");
+
+  // 凡例の表示・非表示制御
+  const hazardLegendMap = {
+    "🌊 洪水浸水想定区域": "floodLegend",
+    "🟥 土砂災害警戒（特別警戒・赤）": "sedimentLegend",
+    "🟨 土砂災害警戒（警戒・黄）": "sedimentLegend",
+    "🌊 津波浸水想定": "tsunamiLegend",
+    "☔ 雨雲レーダー(気象庁)": "rainLegend"
+  };
+  // 凡例の参照カウント（複数レイヤーが同じ凡例を使う場合）
+  const legendRefCount = { floodLegend:0, sedimentLegend:0, tsunamiLegend:0, rainLegend:0 };
+
+  map.on('overlayadd', function(ev) {
+    const legendId = hazardLegendMap[ev.name];
+    if (legendId) {
+      legendRefCount[legendId] = (legendRefCount[legendId] || 0) + 1;
+      document.getElementById(legendId).style.display = 'block';
+    }
+  });
+  map.on('overlayremove', function(ev) {
+    const legendId = hazardLegendMap[ev.name];
+    if (legendId) {
+      legendRefCount[legendId] = Math.max(0, (legendRefCount[legendId] || 1) - 1);
+      if (legendRefCount[legendId] === 0) document.getElementById(legendId).style.display = 'none';
+    }
+  });
+
+  // ===============================
+  // ☔ 雨雲レーダーの追加
   // ===============================
   fetch("https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N1.json")
     .then(res => res.json())
@@ -380,13 +501,6 @@ function initMap(){
         opacity: 0.6, transparent: true, zIndex: 1000, maxNativeZoom: 10, maxZoom: 18
       });
       layerControl.addOverlay(radarLayer, "☔ 雨雲レーダー(気象庁)");
-
-      map.on('overlayadd', function(e) {
-        if(e.name === "☔ 雨雲レーダー(気象庁)") document.getElementById("rainLegend").style.display = "block";
-      });
-      map.on('overlayremove', function(e) {
-        if(e.name === "☔ 雨雲レーダー(気象庁)") document.getElementById("rainLegend").style.display = "none";
-      });
     }).catch(e => console.log("雨雲レーダーの取得に失敗しました"));
 
   window.addHistory = function(name, lat, lng) {
@@ -462,6 +576,7 @@ function initMap(){
     window.currentMode = mode;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('routeSearchArea').style.display = 'none';
+    document.getElementById('routeNumberSearchArea').style.display = 'none';
     document.getElementById('favoriteArea').style.display = 'none';
     document.getElementById('routeInfo').style.display = 'none'; 
     
@@ -470,6 +585,9 @@ function initMap(){
       document.getElementById('tab-route').classList.add('active');
       document.getElementById('routeSearchArea').style.display = 'flex';
       if (routeLine) document.getElementById('routeInfo').style.display = 'flex';
+    } else if (mode === 'route-number') {
+      document.getElementById('tab-route-number').classList.add('active');
+      document.getElementById('routeNumberSearchArea').style.display = 'flex';
     } else if (mode === 'favorite') {
       document.getElementById('tab-favorite').classList.add('active');
       document.getElementById('favoriteArea').style.display = 'block';
@@ -896,6 +1014,134 @@ function initMap(){
   });
 
   map.on('contextmenu', function(e) { if (window.currentMode === 'route') { setStartMarker(e.latlng, '指定した出発地'); tryDrawRoute(); } });
+
+  // ===============================
+  // 🛣️ 路線番号検索機能
+  // ===============================
+  // routes_data.js から読み込まれたグローバル変数を使用
+  console.log('✅ 路線データロード完了: ' + (window.routeNumberData ? window.routeNumberData.length + '件' : 'エラー'));
+  if (window.routeNumberData) {
+    console.log('サンプルデータ:', window.routeNumberData.slice(0, 3));
+  }
+
+  let routeNumberMarkers = []; // 検索結果マーカーを保持
+
+  window.searchRouteNumber = function() {
+    const input = document.getElementById('routeNumberInput').value.trim();
+    if (!input) {
+      alert('路線番号を入力してください');
+      return;
+    }
+
+    console.log('検索入力:', input);
+    console.log('保持しているデータ件数:', window.routeNumberData ? window.routeNumberData.length : '0');
+    
+    if (!window.routeNumberData || window.routeNumberData.length === 0) {
+      alert('路線データが読み込まれていません。ページを再読み込みしてください。');
+      return;
+    }
+
+    // 既存マーカーを削除
+    routeNumberMarkers.forEach(m => map.removeLayer(m));
+    routeNumberMarkers = [];
+
+    // 入力された路線番号で検索
+    const results = window.routeNumberData.filter(r => r.routeNumber === input);
+    
+    console.log('検索結果:', results);
+
+    if (results.length === 0) {
+      document.getElementById('routeNumberResultList').innerHTML = 
+        `<div style="font-size:12px; color:#ef4444; text-align: center; padding: 20px;">「${input}」は見つかりません<br><small style="color:#9ca3af;">登録されている路線番号を確認してください</small></div>`;
+      return;
+    }
+
+    // 検索結果を表示
+    let resultHtml = '';
+    results.forEach((result, idx) => {
+      resultHtml += `
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;">
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 6px;">路線番号: ${result.routeNumber}</div>
+          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+            <div>緯度: ${result.lat.toFixed(6)}</div>
+            <div>経度: ${result.lng.toFixed(6)}</div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button onclick="useRouteAsStart(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
+              style="flex:1; padding: 6px 8px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🚩 出発地</button>
+            <button onclick="useRouteAsDest(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
+              style="flex:1; padding: 6px 8px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🏁 到着地</button>
+            <button onclick="focusRouteMarker(${result.lat}, ${result.lng})" 
+              style="flex:1; padding: 6px 8px; font-size: 11px; background: #f59e0b; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">📍 表示</button>
+          </div>
+        </div>
+      `;
+
+      // 地図にマーカーを追加
+      const marker = L.circleMarker([result.lat, result.lng], {
+        radius: 10,
+        fillColor: '#3b82f6',
+        color: '#ffffff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+      }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="text-align: center;">
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">路線番号: ${result.routeNumber}</div>
+          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+            <div>緯度: ${result.lat.toFixed(6)}</div>
+            <div>経度: ${result.lng.toFixed(6)}</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+            <button onclick="useRouteAsStart(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
+              style="padding: 6px 8px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🚩 出発地に設定</button>
+            <button onclick="useRouteAsDest(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
+              style="padding: 6px 8px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🏁 到着地に設定</button>
+          </div>
+        </div>
+      `).openPopup();
+
+      routeNumberMarkers.push(marker);
+    });
+
+    document.getElementById('routeNumberResultList').innerHTML = resultHtml;
+
+    // 最初の検索結果にズーム
+    if (results.length > 0) {
+      const first = results[0];
+      map.flyTo([first.lat, first.lng], 16);
+    }
+  };
+
+  window.useRouteAsStart = function(lat, lng, routeNum) {
+    switchTab('route');
+    setStartMarker(L.latLng(lat, lng), `路線番号 ${routeNum}`);
+    document.getElementById('startDest').value = `路線番号 ${routeNum}`;
+    tryDrawRoute();
+  };
+
+  window.useRouteAsDest = function(lat, lng, routeNum) {
+    switchTab('route');
+    setDestMarker(L.latLng(lat, lng), `路線番号 ${routeNum}`);
+    document.getElementById('dest').value = `路線番号 ${routeNum}`;
+    tryDrawRoute();
+  };
+
+  window.focusRouteMarker = function(lat, lng) {
+    map.flyTo([lat, lng], 16);
+  };
+
+  // Enterキーで検索実行
+  document.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter' && window.currentMode === 'route-number') {
+      const input = document.getElementById('routeNumberInput');
+      if (document.activeElement === input) {
+        searchRouteNumber();
+      }
+    }
+  });
 
   window.clearRoute = function() {
     // 複数ルートラインをすべて削除
