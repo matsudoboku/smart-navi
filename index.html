@@ -53,8 +53,9 @@ body {
 
 .tabs { display: flex; background: #f3f4f6; padding: 4px; border-radius: 10px; }
 .tab-btn {
-  flex: 1; text-align: center; padding: 10px 2px; font-size: 12px; font-weight: bold;
+  flex: 1; text-align: center; padding: 12px 2px; font-size: 11px; font-weight: bold;
   color: #6b7280; border: none; background: transparent; border-radius: 8px; cursor: pointer; transition: all 0.2s;
+  min-height: 44px; -webkit-tap-highlight-color: transparent;
 }
 .tab-btn.active { background: #ffffff; color: #2563eb; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
@@ -62,8 +63,9 @@ body {
 .search-row { display: flex; gap: 8px; align-items: center; }
 .search-label { font-size: 12px; font-weight: bold; color: #4b5563; width: 36px; text-align: center; }
 .search-row input {
-  flex: 1; margin: 0; padding: 10px 12px; font-size: 14px;
+  flex: 1; margin: 0; padding: 12px 14px; font-size: 16px;
   border-radius: 8px; border: 1px solid #d1d5db; box-sizing: border-box; background: #f9fafb; outline: none;
+  min-height: 44px;
 }
 .search-row input:focus { border-color: #3b82f6; background: #ffffff; }
 
@@ -78,7 +80,8 @@ body {
 .clear-input-btn:hover { color: #374151; }
 
 .search-row .nav-btn {
-  margin: 0; padding: 0 14px; height: 40px; border-radius: 8px; background: #2563eb; color: white; border: none; font-weight: bold;
+  margin: 0; padding: 0 16px; height: 44px; min-width: 60px; border-radius: 8px; background: #2563eb; color: white; border: none; font-weight: bold;
+  font-size: 14px; -webkit-tap-highlight-color: transparent;
 }
 
 #favoriteArea { max-height: 250px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -88,7 +91,7 @@ body {
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
 .slider-box { display: flex; align-items: center; gap: 8px; flex: 1; font-size: 13px; color: #4b5563; font-weight: bold; }
 .slider-box input[type="range"] { flex: 1; margin: 0; accent-color: #3b82f6; }
-.logout-btn { padding: 8px 12px; font-size: 12px; border-radius: 8px; background: #f3f4f6; color: #ef4444; border: 1px solid #d1d5db; font-weight: bold; }
+.logout-btn { padding: 10px 14px; font-size: 13px; border-radius: 8px; background: #f3f4f6; color: #ef4444; border: 1px solid #d1d5db; font-weight: bold; min-height: 44px; -webkit-tap-highlight-color: transparent; }
 
 /* マップ領域 */
 #map-container {
@@ -99,18 +102,23 @@ body {
 }
 
 .leaflet-control-zoom { margin-bottom: 110px !important; margin-right: 15px !important; border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; }
+.leaflet-control-zoom a { width: 36px !important; height: 36px !important; line-height: 36px !important; font-size: 20px !important; }
 .leaflet-control-layers { border: none !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; border-radius: 8px !important; margin-top: 15px !important; margin-right: 15px !important; }
+.leaflet-control-layers-toggle { width: 40px !important; height: 40px !important; }
+.leaflet-control-layers label { font-size: 14px; padding: 4px 0; }
 
-/* 🌟 地図上に浮くボタン群（左下） */
+/* 🌟 地図上に浮くボタン群（左下・縦積み） */
 .bottom-left-controls {
-  position: absolute; bottom: 25px; left: 15px; z-index: 2000;
-  display: flex; gap: 8px; align-items: center;
+  position: absolute; bottom: 25px; left: 12px; z-index: 2000;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
 }
 .map-floating-btn {
-  border: none; padding: 10px 14px; border-radius: 20px; 
+  border: none; padding: 12px 16px; border-radius: 22px; 
   box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-weight: bold; font-size: 13px;
-  cursor: pointer; transition: all 0.2s;
+  cursor: pointer; transition: all 0.2s; min-height: 44px;
+  -webkit-tap-highlight-color: transparent; white-space: nowrap;
 }
+.map-floating-btn:active { transform: scale(0.95); }
 .heading-btn { background: white; color: #3b82f6; }
 .share-btn { background: #3b82f6; color: white; }
 
@@ -142,13 +150,15 @@ body {
 }
 .route-info-panel .time { font-size: 24px; font-weight: bold; color: #10b981; margin-bottom: 2px; }
 .route-info-panel .dist { font-size: 14px; color: #6b7280; font-weight: bold; }
-.route-info-panel .clear-btn { padding: 10px 16px; font-size: 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 10px; font-weight: bold; }
+.route-info-panel .clear-btn { padding: 12px 18px; font-size: 14px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 10px; font-weight: bold; min-height: 44px; -webkit-tap-highlight-color: transparent; }
 
-.popup-buttons { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.popup-buttons { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .popup-buttons button, .popup-buttons a { 
-  padding: 6px 12px; font-size: 12px; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;
+  padding: 10px 14px; font-size: 14px; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
   text-decoration: none; text-align: center; display: block; box-sizing: border-box; font-family: inherit;
+  min-height: 40px; -webkit-tap-highlight-color: transparent;
 }
+.popup-buttons button:active, .popup-buttons a:active { opacity: 0.85; }
 .btn-fav { background: #f59e0b; }
 .btn-sv  { background: #10b981; }
 .btn-share { background: #3b82f6; }
@@ -156,9 +166,10 @@ body {
 /* ショートカットボタン */
 .shortcut-area { display: flex; gap: 6px; flex-wrap: wrap; }
 .shortcut-btn {
-  flex: 1; min-width: 0; padding: 10px 6px; font-size: 12px; font-weight: bold;
+  flex: 1; min-width: 0; padding: 12px 8px; font-size: 13px; font-weight: bold;
   border: none; border-radius: 10px; cursor: pointer; text-align: center;
   box-shadow: 0 2px 6px rgba(0,0,0,0.12); transition: all 0.15s;
+  min-height: 44px; -webkit-tap-highlight-color: transparent;
 }
 .shortcut-btn:active { transform: scale(0.96); }
 .sc-shibukiya { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
@@ -167,9 +178,10 @@ body {
 /* 入力モード切替 */
 .input-mode-row { display: flex; gap: 6px; }
 .mode-toggle-btn {
-  flex: 1; padding: 7px 4px; font-size: 11px; font-weight: bold;
+  flex: 1; padding: 10px 6px; font-size: 12px; font-weight: bold;
   border: 2px solid #d1d5db; background: #f9fafb; color: #6b7280;
   border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
+  min-height: 44px; -webkit-tap-highlight-color: transparent;
 }
 .mode-toggle-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
 
@@ -184,17 +196,18 @@ body {
 /* 複数ルート切替 */
 .route-alt-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .route-alt-btn {
-  flex: 1; padding: 6px 4px; font-size: 11px; font-weight: bold;
+  flex: 1; padding: 8px 6px; font-size: 12px; font-weight: bold;
   border: 2px solid #d1d5db; background: #f9fafb; color: #6b7280;
   border-radius: 8px; cursor: pointer; transition: all 0.15s; text-align: center;
-  white-space: nowrap;
+  white-space: nowrap; min-height: 44px; -webkit-tap-highlight-color: transparent;
 }
 .route-alt-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
 .start-navi-btn {
-  margin-top: 10px; width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
+  margin-top: 10px; width: 100%; padding: 14px; font-size: 16px; font-weight: bold;
   background: linear-gradient(135deg, #10b981, #059669); color: white;
   border: none; border-radius: 12px; cursor: pointer;
   box-shadow: 0 4px 12px rgba(16,185,129,0.4); transition: all 0.2s;
+  min-height: 48px; -webkit-tap-highlight-color: transparent;
 }
 .start-navi-btn:active { transform: scale(0.97); }
 
@@ -214,7 +227,7 @@ body {
 .navi-bottom { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; }
 .navi-eta { font-size: 13px; opacity: 0.85; }
 .navi-remain { font-size: 20px; font-weight: bold; }
-.navi-stop-btn { padding: 8px 16px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; color: white; font-weight: bold; font-size: 13px; cursor: pointer; }
+.navi-stop-btn { padding: 10px 18px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); border-radius: 8px; color: white; font-weight: bold; font-size: 14px; cursor: pointer; min-height: 44px; -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 
@@ -414,21 +427,48 @@ function initMap(){
   setTimeout(() => { map.invalidateSize(); }, 100);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+  // 🔧 バックグラウンド復帰時の強力な再描画処理
   const forceRedraw = () => {
-    if (map) {
-      setTimeout(() => map.invalidateSize(), 100);
-      setTimeout(() => map.invalidateSize(), 500); 
-    }
+    if (!map) return;
+    // 段階的にinvalidateSizeを呼び出して確実にタイルを再描画
+    const delays = [50, 150, 300, 600, 1200, 2000];
+    delays.forEach(d => setTimeout(() => {
+      if (map) {
+        map.invalidateSize({ animate: false });
+        // タイルレイヤーを強制リフレッシュ
+        map.eachLayer(layer => {
+          if (layer.redraw) layer.redraw();
+          if (layer._reset) layer._reset();
+          if (layer._update) layer._update();
+        });
+      }
+    }, d));
   };
+
+  // visibilitychange: メインのバックグラウンド復帰イベント
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === 'visible') forceRedraw();
+    if (document.visibilityState === 'visible') {
+      // UIの表示状態を再確認・復旧
+      if (localStorage.getItem('auth') === 'ok') {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.querySelector('.top-header').style.display = 'flex';
+        document.getElementById('map-container').style.display = 'block';
+      }
+      forceRedraw();
+    }
   });
   window.addEventListener("focus", forceRedraw);
-  window.addEventListener("pageshow", forceRedraw);
+  window.addEventListener("pageshow", (event) => {
+    // bfcache（戻る/進む キャッシュ）からの復帰にも対応
+    if (event.persisted) forceRedraw();
+    else forceRedraw();
+  });
+  // iOS PWA固有: resume イベント
+  window.addEventListener("resume", forceRedraw);
 
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap contributors'}).addTo(map);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
-  const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg');
+  const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg', {attribution: '© 国土地理院'});
   const openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {maxZoom: 17, attribution: '© OpenTopoMap'});
   const usgsImagery = L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSImagery/MapServer/tile/{z}/{y}/{x}', {attribution: '© USGS'});
 
