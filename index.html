@@ -427,49 +427,43 @@ function initMap(){
 
   document.getElementById("opacitySlider").addEventListener("input", e => overlayMap.setOpacity(e.target.value));
 
-  // ===============================
+// ===============================
   // 🗾 ハザードマップ（国土地理院）の追加
   // ===============================
   // 洪水浸水想定区域（想定最大規模）
   const floodTile = L.tileLayer(
-    'https://disaportal.gsi.go.jp/maps/tiles/flood_l2_shinsuishin/{z}/{x}/{y}.png?t={timestamp}',
+    'https://disaportaldata.gsi.go.jp/raster/01_flood_l2_shinsuishin_data/{z}/{x}/{y}.png',
     { opacity: 0.55, transparent: true, zIndex: 900, maxZoom: 17, maxNativeZoom: 17,
-      attribution: '© 国土地理院ハザードマップポータル',
-      timestamp: Date.now() }
+      attribution: '© 国土地理院ハザードマップポータル' }
   );
-  // 土砂災害警戒区域（特別警戒：レッド）
+  // 土砂災害警戒区域（急傾斜地の崩壊）※画像内にレッド・イエロー両方が含まれます
   const sedimentRedTile = L.tileLayer(
-    'https://disaportal.gsi.go.jp/maps/tiles/doshasaigai_keikaikuiki_red/{z}/{x}/{y}.png?t={timestamp}',
+    'https://disaportaldata.gsi.go.jp/raster/05_kyukeishakeikaikuiki/{z}/{x}/{y}.png',
     { opacity: 0.7, transparent: true, zIndex: 910, maxZoom: 17, maxNativeZoom: 17,
-      attribution: '© 国土地理院',
-      timestamp: Date.now() }
+      attribution: '© 国土地理院ハザードマップポータル' }
   );
-  // 土砂災害警戒区域（警戒：イエロー）
+  // 土砂災害警戒区域（土石流）※画像内にレッド・イエロー両方が含まれます
   const sedimentYellowTile = L.tileLayer(
-    'https://disaportal.gsi.go.jp/maps/tiles/doshasaigai_keikaikuiki_yellow/{z}/{x}/{y}.png?t={timestamp}',
+    'https://disaportaldata.gsi.go.jp/raster/05_dosekiryukeikaikuiki/{z}/{x}/{y}.png',
     { opacity: 0.7, transparent: true, zIndex: 905, maxZoom: 17, maxNativeZoom: 17,
-      attribution: '© 国土地理院',
-      timestamp: Date.now() }
+      attribution: '© 国土地理院ハザードマップポータル' }
   );
   // 津波浸水想定
   const tsunamiTile = L.tileLayer(
-    'https://disaportal.gsi.go.jp/maps/tiles/tsunami_newlegend_2/{z}/{x}/{y}.png?t={timestamp}',
+    'https://disaportaldata.gsi.go.jp/raster/04_tsunami_newlegend_data/{z}/{x}/{y}.png',
     { opacity: 0.6, transparent: true, zIndex: 895, maxZoom: 17, maxNativeZoom: 17,
-      attribution: '© 国土地理院',
-      timestamp: Date.now() }
+      attribution: '© 国土地理院ハザードマップポータル' }
   );
 
   layerControl.addOverlay(floodTile,        "🌊 洪水浸水想定区域");
-  layerControl.addOverlay(sedimentRedTile,  "🟥 土砂災害警戒（特別警戒・赤）");
-  layerControl.addOverlay(sedimentYellowTile, "🟨 土砂災害警戒（警戒・黄）");
-  layerControl.addOverlay(tsunamiTile,      "🌊 津波浸水想定");
+  layerControl.addOverlay(sedimentRedTile,  "🟥 土砂災害警戒（急傾斜地の崩壊）");
+  layerControl.addOverlay(sedimentYellowTile, "🟨 土砂災害警戒（土石流）");
 
   // 凡例の表示・非表示制御
   const hazardLegendMap = {
     "🌊 洪水浸水想定区域": "floodLegend",
-    "🟥 土砂災害警戒（特別警戒・赤）": "sedimentLegend",
-    "🟨 土砂災害警戒（警戒・黄）": "sedimentLegend",
-    "🌊 津波浸水想定": "tsunamiLegend",
+    "🟥 土砂災害警戒（急傾斜地の崩壊）": "sedimentLegend",
+    "🟨 土砂災害警戒（土石流）": "sedimentLegend",
     "☔ 雨雲レーダー(気象庁)": "rainLegend"
   };
   // 凡例の参照カウント（複数レイヤーが同じ凡例を使う場合）
@@ -1026,6 +1020,23 @@ function initMap(){
 
   let routeNumberMarkers = []; // 検索結果マーカーを保持
 
+  // 全角英数字を半角に変換し、小文字化する関数
+  function normalizeString(str) {
+    if (!str) return '';
+    return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+      return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+    }).toLowerCase();
+  }
+
+  // 4桁の路線番号を「町道○号線（XXXX）」の形式に変換する関数
+  function formatRouteLabel(routeNumber) {
+    if (routeNumber && /^\d{4}$/.test(routeNumber)) {
+      const num = parseInt(routeNumber.substring(1), 10);
+      return `町道${num}号線（${routeNumber}）`;
+    }
+    return routeNumber || '';
+  }
+
   window.searchRouteNumber = function() {
     const input = document.getElementById('routeNumberInput').value.trim();
     if (!input) {
@@ -1045,8 +1056,40 @@ function initMap(){
     routeNumberMarkers.forEach(m => map.removeLayer(m));
     routeNumberMarkers = [];
 
-    // 入力された路線番号で検索
-    const results = window.routeNumberData.filter(r => r.routeNumber === input);
+    // 検索入力文字列の正規化
+    const normalizedInput = normalizeString(input);
+    const inputNum = parseInt(normalizedInput, 10);
+    const isInputNum = !isNaN(inputNum);
+
+    // 入力されたキーワードで部分一致、または数値一致検索
+    const results = window.routeNumberData.filter(r => {
+      const displayLabel = formatRouteLabel(r.routeNumber);
+      const normalizedDisplay = normalizeString(displayLabel);
+      const normalizedRoute = normalizeString(r.routeNumber);
+
+      // A. 路線名に数字以外の文字（漢字や「号」「線」など）が含まれている場合（例: "吉原線", "大草線", "3号線" など）
+      if (/[^\d]/.test(r.routeNumber)) {
+        // 部分一致を許可
+        if (normalizedDisplay.includes(normalizedInput) || normalizedRoute.includes(normalizedInput)) {
+          return true;
+        }
+      } 
+      // B. 路線名が4桁の半角数値のみの場合（例: "2003", "3112" など）
+      else if (/^\d{4}$/.test(r.routeNumber)) {
+        // 1. 完全一致（4桁フルで入力された場合）
+        if (normalizedRoute === normalizedInput) {
+          return true;
+        }
+        // 2. 数値での一致（下3桁の数値が一致するか確認）
+        if (isInputNum) {
+          const lastThreeNum = parseInt(r.routeNumber.substring(1), 10);
+          if (lastThreeNum === inputNum) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
     
     console.log('検索結果:', results);
 
@@ -1059,9 +1102,11 @@ function initMap(){
     // 検索結果を表示
     let resultHtml = '';
     results.forEach((result, idx) => {
+      const displayLabel = formatRouteLabel(result.routeNumber);
+
       resultHtml += `
         <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;">
-          <div style="font-weight: bold; color: #1e40af; margin-bottom: 6px;">路線番号: ${result.routeNumber}</div>
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 6px;">${displayLabel}</div>
           <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
             <div>緯度: ${result.lat.toFixed(6)}</div>
             <div>経度: ${result.lng.toFixed(6)}</div>
@@ -1089,7 +1134,7 @@ function initMap(){
 
       marker.bindPopup(`
         <div style="text-align: center;">
-          <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">路線番号: ${result.routeNumber}</div>
+          <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">${displayLabel}</div>
           <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
             <div>緯度: ${result.lat.toFixed(6)}</div>
             <div>経度: ${result.lng.toFixed(6)}</div>
@@ -1117,15 +1162,17 @@ function initMap(){
 
   window.useRouteAsStart = function(lat, lng, routeNum) {
     switchTab('route');
-    setStartMarker(L.latLng(lat, lng), `路線番号 ${routeNum}`);
-    document.getElementById('startDest').value = `路線番号 ${routeNum}`;
+    const label = formatRouteLabel(routeNum);
+    setStartMarker(L.latLng(lat, lng), label);
+    document.getElementById('startDest').value = label;
     tryDrawRoute();
   };
 
   window.useRouteAsDest = function(lat, lng, routeNum) {
     switchTab('route');
-    setDestMarker(L.latLng(lat, lng), `路線番号 ${routeNum}`);
-    document.getElementById('dest').value = `路線番号 ${routeNum}`;
+    const label = formatRouteLabel(routeNum);
+    setDestMarker(L.latLng(lat, lng), label);
+    document.getElementById('dest').value = label;
     tryDrawRoute();
   };
 
