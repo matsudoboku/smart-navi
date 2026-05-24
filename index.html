@@ -66,6 +66,17 @@ body {
   border-radius: 8px; border: 1px solid #d1d5db; box-sizing: border-box; background: #f9fafb; outline: none;
 }
 .search-row input:focus { border-color: #3b82f6; background: #ffffff; }
+
+/* 検索ボックスに×ボタン */
+.search-input-wrapper { position: relative; flex: 1; display: flex; align-items: center; }
+.search-input-wrapper input { flex: 1; padding-right: 32px; }
+.clear-input-btn {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: #9ca3af; font-size: 16px; cursor: pointer;
+  line-height: 1; padding: 2px 4px; display: none; font-weight: bold;
+}
+.clear-input-btn:hover { color: #374151; }
+
 .search-row .nav-btn {
   margin: 0; padding: 0 14px; height: 40px; border-radius: 8px; background: #2563eb; color: white; border: none; font-weight: bold;
 }
@@ -250,7 +261,10 @@ body {
   <div class="search-group" id="routeNumberSearchArea" style="display: none;">
     <div class="search-row">
       <div class="search-label">路線番号</div>
-      <input id="routeNumberInput" placeholder="路線番号を入力（例：2193）" type="text">
+      <div class="search-input-wrapper">
+        <input id="routeNumberInput" placeholder="路線番号を入力（例：2193）" type="text" oninput="toggleRouteClearBtn()">
+        <button class="clear-input-btn" id="routeNumberClearBtn" onclick="clearRouteNumberInput()" title="クリア">✕</button>
+      </div>
       <button onclick="searchRouteNumber()" class="nav-btn" id="searchRouteBtn">検索</button>
     </div>
     <div id="routeNumberResultList" style="max-height: 200px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 10px;">
@@ -1019,6 +1033,7 @@ function initMap(){
   }
 
   let routeNumberMarkers = []; // 検索結果マーカーを保持
+  let activeRouteNumberMarker = null; // 現在表示中の「表示」マーカー
 
   // 全角英数字を半角に変換し、小文字化する関数
   function normalizeString(str) {
@@ -1099,7 +1114,7 @@ function initMap(){
       return;
     }
 
-    // 検索結果を表示
+    // 検索結果を表示（マーカーは「表示」ボタンを押したときだけ追加）
     let resultHtml = '';
     results.forEach((result, idx) => {
       const displayLabel = formatRouteLabel(result.routeNumber);
@@ -1116,48 +1131,14 @@ function initMap(){
               style="flex:1; padding: 6px 8px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🚩 出発地</button>
             <button onclick="useRouteAsDest(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
               style="flex:1; padding: 6px 8px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🏁 到着地</button>
-            <button onclick="focusRouteMarker(${result.lat}, ${result.lng})" 
+            <button onclick="focusRouteMarker(${result.lat}, ${result.lng}, '${displayLabel}', '${result.routeNumber}')" 
               style="flex:1; padding: 6px 8px; font-size: 11px; background: #f59e0b; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">📍 表示</button>
           </div>
         </div>
       `;
-
-      // 地図にマーカーを追加
-      const marker = L.circleMarker([result.lat, result.lng], {
-        radius: 10,
-        fillColor: '#3b82f6',
-        color: '#ffffff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-      }).addTo(map);
-
-      marker.bindPopup(`
-        <div style="text-align: center;">
-          <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">${displayLabel}</div>
-          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-            <div>緯度: ${result.lat.toFixed(6)}</div>
-            <div>経度: ${result.lng.toFixed(6)}</div>
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-            <button onclick="useRouteAsStart(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
-              style="padding: 6px 8px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🚩 出発地に設定</button>
-            <button onclick="useRouteAsDest(${result.lat}, ${result.lng}, '${result.routeNumber}')" 
-              style="padding: 6px 8px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🏁 到着地に設定</button>
-          </div>
-        </div>
-      `).openPopup();
-
-      routeNumberMarkers.push(marker);
     });
 
     document.getElementById('routeNumberResultList').innerHTML = resultHtml;
-
-    // 最初の検索結果にズーム
-    if (results.length > 0) {
-      const first = results[0];
-      map.flyTo([first.lat, first.lng], 16);
-    }
   };
 
   window.useRouteAsStart = function(lat, lng, routeNum) {
@@ -1176,8 +1157,58 @@ function initMap(){
     tryDrawRoute();
   };
 
-  window.focusRouteMarker = function(lat, lng) {
+  window.focusRouteMarker = function(lat, lng, displayLabel, routeNum) {
+    // 既存の「表示」マーカーを削除
+    if (activeRouteNumberMarker) {
+      map.removeLayer(activeRouteNumberMarker);
+      activeRouteNumberMarker = null;
+    }
+    // 新しいマーカーを追加
+    activeRouteNumberMarker = L.circleMarker([lat, lng], {
+      radius: 10,
+      fillColor: '#f59e0b',
+      color: '#ffffff',
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.9
+    }).addTo(map);
+    activeRouteNumberMarker.bindPopup(`
+      <div style="text-align: center;">
+        <div style="font-weight: bold; color: #1e40af; margin-bottom: 8px;">${displayLabel}</div>
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
+          <div>緯度: ${lat.toFixed(6)}</div>
+          <div>経度: ${lng.toFixed(6)}</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+          <button onclick="useRouteAsStart(${lat}, ${lng}, '${routeNum}')" 
+            style="padding: 6px 8px; font-size: 11px; background: #10b981; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🚩 出発地に設定</button>
+          <button onclick="useRouteAsDest(${lat}, ${lng}, '${routeNum}')" 
+            style="padding: 6px 8px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🏁 到着地に設定</button>
+        </div>
+      </div>
+    `).openPopup();
+    routeNumberMarkers.push(activeRouteNumberMarker);
     map.flyTo([lat, lng], 16);
+  };
+
+  // 検索ボックスの×ボタン制御
+  window.toggleRouteClearBtn = function() {
+    const input = document.getElementById('routeNumberInput');
+    const btn = document.getElementById('routeNumberClearBtn');
+    btn.style.display = input.value.length > 0 ? 'block' : 'none';
+  };
+
+  window.clearRouteNumberInput = function() {
+    const input = document.getElementById('routeNumberInput');
+    input.value = '';
+    document.getElementById('routeNumberClearBtn').style.display = 'none';
+    // 表示中のマーカーをすべて削除
+    routeNumberMarkers.forEach(m => map.removeLayer(m));
+    routeNumberMarkers = [];
+    activeRouteNumberMarker = null;
+    document.getElementById('routeNumberResultList').innerHTML =
+      '<div style="font-size:12px; color:#9ca3af; text-align: center;">路線番号を入力して検索</div>';
+    input.focus();
   };
 
   // Enterキーで検索実行
@@ -1189,6 +1220,18 @@ function initMap(){
       }
     }
   });
+
+  // 検索時も既存の「表示」マーカーをリセット
+  const _origSearchRouteNumber = window.searchRouteNumber;
+  window.searchRouteNumber = function() {
+    if (activeRouteNumberMarker) {
+      map.removeLayer(activeRouteNumberMarker);
+      activeRouteNumberMarker = null;
+    }
+    routeNumberMarkers.forEach(m => map.removeLayer(m));
+    routeNumberMarkers = [];
+    _origSearchRouteNumber();
+  };
 
   window.clearRoute = function() {
     // 複数ルートラインをすべて削除
