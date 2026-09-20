@@ -462,25 +462,31 @@ function initMap(){
   setTimeout(() => { map.invalidateSize(); }, 100);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-  // 🔧 バックグラウンド復帰時の強力な再描画処理
-  const forceRedraw = () => {
+  // 🔧 バックグラウンド復帰時・画面回転・リサイズ時の確実な再描画処理
+  const safeInvalidateSize = () => {
     if (!map) return;
-    // 段階的にinvalidateSizeを呼び出して確実にタイルを再描画
-    const delays = [50, 150, 300, 600, 1200, 2000];
-    delays.forEach(d => setTimeout(() => {
-      if (map) {
-        map.invalidateSize({ animate: false });
-        // タイルレイヤーを強制リフレッシュ
-        map.eachLayer(layer => {
-          if (layer.redraw) layer.redraw();
-          if (layer._reset) layer._reset();
-          if (layer._update) layer._update();
-        });
-      }
-    }, d));
+    const container = map.getContainer();
+    // コンテナが表示され、幅と高さが正の値を持っている場合のみ実行（0x0時のタイル消去を防止）
+    if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
+      // pan: false で中心位置のズレを防止し、animate: false で即座にサイズを同期
+      map.invalidateSize({ pan: false, animate: false });
+    }
   };
 
-  // visibilitychange: メインのバックグラウンド復帰イベント
+  const forceRedraw = () => {
+    if (!map) return;
+    // 即座に実行
+    safeInvalidateSize();
+    // 次の描画フレームで実行
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(safeInvalidateSize);
+    }
+    // スマホのアドレスバー伸縮やOSのアニメーション完了に合わせて段階的に実行
+    const delays = [50, 150, 300, 600, 1000, 1500];
+    delays.forEach(d => setTimeout(safeInvalidateSize, d));
+  };
+
+  // ① visibilitychange: 別アプリ・別タブからの復帰
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === 'visible') {
       // UIの表示状態を再確認・復旧
@@ -492,14 +498,39 @@ function initMap(){
       forceRedraw();
     }
   });
+
+  // ② focus: アプリやタブへのフォーカス復帰
   window.addEventListener("focus", forceRedraw);
-  window.addEventListener("pageshow", (event) => {
-    // bfcache（戻る/進む キャッシュ）からの復帰にも対応
-    if (event.persisted) forceRedraw();
-    else forceRedraw();
-  });
-  // iOS PWA固有: resume イベント
+
+  // ③ pageshow: ブラウザの「戻る／進む」（bfcache）復帰
+  window.addEventListener("pageshow", forceRedraw);
+
+  // ④ resume: iOS PWA/Cordova等の復帰イベント
   window.addEventListener("resume", forceRedraw);
+
+  // ⑤ orientationchange: 画面回転時
+  window.addEventListener("orientationchange", () => {
+    setTimeout(forceRedraw, 200);
+  });
+  if (window.screen && window.screen.orientation) {
+    window.screen.orientation.addEventListener("change", () => {
+      setTimeout(forceRedraw, 200);
+    });
+  }
+
+  // ⑥ resize: ウィンドウリサイズ・アドレスバー伸縮時
+  window.addEventListener("resize", forceRedraw);
+
+  // ⑦ ResizeObserver: #mapコンテナ自体のサイズ変化を自動検知
+  if (window.ResizeObserver) {
+    const mapEl = document.getElementById('map');
+    if (mapEl) {
+      const ro = new ResizeObserver(() => {
+        safeInvalidateSize();
+      });
+      ro.observe(mapEl);
+    }
+  }
 
   // 【OpenStreetMap タイルレイヤー】
   // ※ GitHub Pages では正常に表示されます（タイルのURLは変更していません）。
