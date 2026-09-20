@@ -107,6 +107,29 @@ body {
 .leaflet-control-layers-toggle { width: 40px !important; height: 40px !important; }
 .leaflet-control-layers label { font-size: 14px; padding: 4px 0; }
 
+/* 📍 現在地に戻るボタン（右下のズームボタンの上に配置・既存UIと干渉しない設計） */
+.recenter-btn {
+  position: absolute; bottom: 195px; right: 15px; z-index: 2000;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #ffffff; border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+}
+.recenter-btn:active {
+  transform: scale(0.92);
+  background: #f3f4f6;
+}
+.recenter-btn.loading svg {
+  animation: recenter-spin 1s linear infinite;
+}
+@keyframes recenter-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* 🌟 地図上に浮くボタン群（左下・縦積み） */
 .bottom-left-controls {
   position: absolute; bottom: 25px; left: 12px; z-index: 2000;
@@ -305,6 +328,18 @@ body {
 <div id="map-container">
   <div id="map"></div>
   
+  <!-- 📍 現在地に戻るボタン（右下のズームボタンの上に配置・既存UIと干渉しない設計） -->
+  <button id="recenterBtn" class="recenter-btn" onclick="recenterToCurrentLocation()" title="現在地へ戻る" aria-label="現在地へ戻る">
+    <svg id="recenterIcon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="7"></circle>
+      <line x1="12" y1="1" x2="12" y2="5"></line>
+      <line x1="12" y1="19" x2="12" y2="23"></line>
+      <line x1="1" y1="12" x2="5" y2="12"></line>
+      <line x1="19" y1="12" x2="23" y2="12"></line>
+      <circle cx="12" cy="12" r="2" fill="#2563eb"></circle>
+    </svg>
+  </button>
+
   <!-- 🌟 左下の操作ボタン群 -->
   <div class="bottom-left-controls">
     <button id="headingBtn" class="map-floating-btn heading-btn" onclick="toggleHeadingMode()">🧭 追従: オフ</button>
@@ -466,6 +501,13 @@ function initMap(){
   // iOS PWA固有: resume イベント
   window.addEventListener("resume", forceRedraw);
 
+  // 【OpenStreetMap タイルレイヤー】
+  // ※ GitHub Pages では正常に表示されます（タイルのURLは変更していません）。
+  // ※ ローカルで file:// 直接開くと OSM の Tile Usage Policy (Referer必須) によりブロックされるため、
+  //    ローカル動作確認時は localhost 経由（VSCode Live Server や python -m http.server 等）で開いてください。
+  if (location.protocol === 'file:') {
+    console.warn('[GeoSync-Town] file:// プロトコルで開かれています。OpenStreetMap等の外部タイルサーバーはTile Usage Policy（Referer必須）によりブロックされる場合があります。ローカル動作確認時はローカルWebサーバー（http://localhost:...）をご利用ください。詳細はREADME.mdを参照してください。');
+  }
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap contributors'}).addTo(map);
   const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
   const gsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg', {attribution: '© 国土地理院'});
@@ -651,6 +693,7 @@ function initMap(){
   let trackingMode = 0; 
   let lastHeading = 0;
   let lastRouteUpdate = 0;
+  let lastPosTime = 0; // 最終位置情報取得時刻
   let inputMode = 'map'; // 'map' or 'search'
   let pickTarget = null; // 'start' or 'dest'
 
@@ -706,7 +749,92 @@ function initMap(){
     addFavorite(lat, lng, "現在地");
   };
 
+  // ==========================================
+  // 📍 地図を現在地へ移動（「現在地に戻る」ボタン）
+  // ==========================================
+  window.recenterToCurrentLocation = function() {
+    const btn = document.getElementById('recenterBtn');
+
+    if (!navigator.geolocation) {
+      alert("お使いのブラウザは位置情報の取得に対応していません。");
+      return;
+    }
+
+    // 既に取得済みの現在地マーカーがあり、かつ情報が十分新しい（60秒以内）場合は即座に現在地へスムーズ移動
+    const now = Date.now();
+    if (userMarker && (now - lastPosTime < 60000)) {
+      const targetZoom = Math.max(map.getZoom(), 15);
+      map.flyTo(userMarker.getLatLng(), targetZoom, { animate: true, duration: 1.0 });
+
+      // ユーザーが自由に操作できるよう、進行方向固定などの追従モードは解除してパン・ズーム可能にする
+      if (trackingMode === 2) {
+        trackingMode = 0;
+        const hBtn = document.getElementById('headingBtn');
+        if (hBtn) { hBtn.innerText = "🧭 追従: オフ"; hBtn.style.background = "white"; hBtn.style.color = "#3b82f6"; }
+        document.getElementById('map').style.transform = "rotate(0deg) scale(1)";
+        document.querySelector('.leaflet-control-container').style.display = 'block';
+        map.dragging.enable();
+      }
+      return;
+    }
+
+    // まだ現在地が未取得または古い場合は、ボタンをローディング状態にして最新位置を取得
+    if (btn) btn.classList.add('loading');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        if (btn) btn.classList.remove('loading');
+        lastPosTime = Date.now();
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
+
+        // 既存の現在地マーカー（userMarker）を再利用し、重複生成を防ぐ
+        if (!userMarker) {
+          userMarker = L.circleMarker([lat, lng], { radius: 8, fillColor: "#3b82f6", color: "#ffffff", weight: 3, opacity: 1, fillOpacity: 1 }).addTo(map);
+          userMarker.bindPopup(`
+            <div style="text-align:center;"><b>現在地</b><br>
+            <button class="btn-share" onclick="shareLocation(${lat}, ${lng}, '現在地')" style="margin-top:5px; padding:6px; color:white; border:none; border-radius:4px; font-weight:bold;">📤 現在地をシェア</button></div>
+          `);
+        } else {
+          userMarker.setLatLng([lat, lng]);
+        }
+
+        // 現在地の使い勝手を考慮したズームレベルで移動
+        const targetZoom = Math.max(map.getZoom(), 15);
+        map.flyTo([lat, lng], targetZoom, { animate: true, duration: 1.0 });
+
+        // 常時追従にはせず、ユーザーが自由に地図を操作可能にする
+        if (trackingMode === 2) {
+          trackingMode = 0;
+          const hBtn = document.getElementById('headingBtn');
+          if (hBtn) { hBtn.innerText = "🧭 追従: オフ"; hBtn.style.background = "white"; hBtn.style.color = "#3b82f6"; }
+          document.getElementById('map').style.transform = "rotate(0deg) scale(1)";
+          document.querySelector('.leaflet-control-container').style.display = 'block';
+          map.dragging.enable();
+        }
+      },
+      err => {
+        if (btn) btn.classList.remove('loading');
+        // 位置情報エラーの原因を分かりやすく提示
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            alert("現在地を取得できません。ブラウザの位置情報の許可を確認してください。");
+            break;
+          case err.POSITION_UNAVAILABLE:
+            alert("位置情報を取得できませんでした。電波やGPSの受信状態を確認してください。");
+            break;
+          case err.TIMEOUT:
+            alert("位置情報の取得がタイムアウトしました。再度お試しください。");
+            break;
+          default:
+            alert("現在地の取得に失敗しました。(" + (err.message || "エラー") + ")");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+    );
+  };
+
   navigator.geolocation.watchPosition(pos => {
+    lastPosTime = Date.now();
     const lat = pos.coords.latitude, lng = pos.coords.longitude;
     if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) lastHeading = pos.coords.heading;
 
