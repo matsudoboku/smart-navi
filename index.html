@@ -446,12 +446,37 @@ function startApp(){
 }
 if(localStorage.getItem("auth")==="ok") startApp();
 
-window.shareLocation = function(lat, lng, name="この場所") {
+window.shareLocation = function(lat, lng, name="現在地") {
   const url = `https://www.google.com/maps?q=${lat},${lng}`;
+  // ※スマホの共有メニューで「コピー」を選択した際、OS仕様によりtextのみがコピーされる場合があるため、text内にURLを直接含める
+  const shareText = `${name}\n${url}`;
+
   if (navigator.share) {
-    navigator.share({ title: name, text: 'ここをチェックしてください！', url: url }).catch(()=>{});
-  } else { prompt("URLをコピーして共有してください", url); }
+    navigator.share({
+      title: name,
+      text: shareText,
+      url: url
+    }).catch(err => {
+      if (err && err.name !== 'AbortError') {
+        copyLocationFallback(url);
+      }
+    });
+  } else {
+    copyLocationFallback(url);
+  }
 };
+
+function copyLocationFallback(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert("位置情報のURLをクリップボードにコピーしました！\n" + url);
+    }).catch(() => {
+      prompt("URLをコピーして共有してください", url);
+    });
+  } else {
+    prompt("URLをコピーして共有してください", url);
+  }
+}
 
 let map;
 
